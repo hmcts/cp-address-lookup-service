@@ -1,9 +1,23 @@
 spring:
   application:
     name: cp-address-lookup-service
+  jackson:
+    default-property-inclusion: non_null
 
 server:
   port: ${SERVER_PORT:8082}
+  servlet:
+    context-path: ${SERVER_SERVLET_CONTEXT_PATH:/address-lookup-service}
+
+os-places:
+  client:
+    base-url: ${OS_PLACES_BASE_URL:https://api.os.uk}
+    api-key: ${OS_PLACES_API_KEY:}
+    connect-timeout-ms: ${OS_PLACES_CONNECT_TIMEOUT_MS:3000}
+    read-timeout-ms: ${OS_PLACES_READ_TIMEOUT_MS:10000}
+    # true only on OS-backed tiers (SIT/PRP/PRD) - set via Helm values per environment. Fixture
+    # tiers (STE/DEV/NFT) leave this false, since they have no OS Places key at all.
+    key-required: ${OS_PLACES_KEY_REQUIRED:false}
 
 azure:
   application-insights:
@@ -19,6 +33,19 @@ management:
     health:
       probes:
         enabled: true   # enables liveness / readiness groups
+      # No secrets in health details (this service is unauthenticated everywhere, by design -
+      # see the OpenAPI spec's own description); ops need to see which component failed readiness.
+      show-details: always
+      group:
+        readiness:
+          include: readinessState,osPlacesKey
+  otlp:
+    metrics:
+      export:
+        enabled: ${OTEL_EXPORT_ENABLED:false}
+    tracing:
+      export:
+        enabled: ${OTEL_EXPORT_ENABLED:false}
 
 logging:
   level:

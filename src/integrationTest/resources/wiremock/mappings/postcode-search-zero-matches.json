@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/search/places/v1/postcode",
+    "queryParameters": {
+      "postcode": { "equalTo": "ZZ99 1AA" }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "bodyFileName": "postcode-search-zero-matches-body.json"
+  }
+}

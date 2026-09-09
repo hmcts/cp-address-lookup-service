@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/search/places/v1/postcode",
+    "queryParameters": {
+      "postcode": { "equalTo": "SW1A 1AA" },
+      "key": { "equalTo": "test-api-key" }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "bodyFileName": "postcode-search-success-body.json"
+  }
+}
