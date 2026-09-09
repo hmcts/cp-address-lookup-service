@@ -19,7 +19,16 @@ public class AddressSearchServiceImpl implements AddressSearchService {
 
     @Override
     public AddressSearchResponse searchByPostcode(final String postcode, final boolean includeDpa) {
-        final List<Map<String, Object>> dpaRecords = osPlacesClient.searchByPostcode(postcode.trim());
+        return toResponse(osPlacesClient.searchByPostcode(postcode.trim()), includeDpa);
+    }
+
+    @Override
+    public AddressSearchResponse searchByAddress(final String address, final boolean includeDpa) {
+        return toResponse(osPlacesClient.searchByAddress(address), includeDpa);
+    }
+
+    private static AddressSearchResponse toResponse(final List<Map<String, Object>> dpaRecords,
+            final boolean includeDpa) {
         final List<AddressCandidate> candidates = dpaRecords.stream()
                 .map(dpa -> CanonicalAddressMapper.toCandidate(dpa, includeDpa))
                 .toList();

@@ -60,4 +60,37 @@ class AddressSearchServiceImplTest {
 
         verify(osPlacesClient).searchByPostcode("SW1A 1AA");
     }
+
+    @Test
+    void address_search_maps_client_results_into_a_search_response() {
+        final Map<String, Object> dpa = new HashMap<>();
+        dpa.put("UPRN", "10033544886");
+        dpa.put("BUILDING_NUMBER", "10");
+        dpa.put("THOROUGHFARE_NAME", "Downing Street");
+        dpa.put("POSTCODE", "SW1A 1AA");
+        when(osPlacesClient.searchByAddress("10 Downing Street")).thenReturn(List.of(dpa));
+
+        final AddressSearchResponse response = service.searchByAddress("10 Downing Street", false);
+
+        assertThat(response.getResults()).hasSize(1);
+        assertThat(response.getResults().get(0).getAddress1()).isEqualTo("10");
+    }
+
+    @Test
+    void address_search_returns_empty_results_for_zero_matches() {
+        when(osPlacesClient.searchByAddress("nonsense")).thenReturn(List.of());
+
+        final AddressSearchResponse response = service.searchByAddress("nonsense", false);
+
+        assertThat(response.getResults()).isEmpty();
+    }
+
+    @Test
+    void address_search_passes_the_address_through_unmodified() {
+        when(osPlacesClient.searchByAddress(eq(" 10 Downing Street "))).thenReturn(List.of());
+
+        service.searchByAddress(" 10 Downing Street ", false);
+
+        verify(osPlacesClient).searchByAddress(" 10 Downing Street ");
+    }
 }

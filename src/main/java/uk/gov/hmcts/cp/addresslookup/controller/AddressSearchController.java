@@ -18,10 +18,16 @@ public class AddressSearchController implements AddressSearchApi {
     private final AddressSearchService addressSearchService;
 
     @Override
-    public ResponseEntity<AddressSearchResponse> searchByPostcode(final String postcode,
-            final AddressResponseInclude include) {
+    public ResponseEntity<AddressSearchResponse> searchByPostcode(final String postcode, final AddressResponseInclude include) {
         log.debug("searchByPostcode postcode={} include={}", postcode, include);
         final boolean includeDpa = include == AddressResponseInclude.DPA;
         return ResponseEntity.ok(addressSearchService.searchByPostcode(postcode, includeDpa));
+    }
+
+    @Override
+    public ResponseEntity<AddressSearchResponse> searchAddresses(final String address, final AddressResponseInclude include) {
+        log.debug("searchAddresses address={} include={}", address, include);
+        final boolean includeDpa = include == AddressResponseInclude.DPA;
+        return ResponseEntity.ok(addressSearchService.searchByAddress(address, includeDpa));
     }
 }
