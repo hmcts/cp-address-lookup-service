@@ -20,6 +20,7 @@ apply {
   from("$rootDir/gradle/pmd.gradle")
   from("$rootDir/gradle/test.gradle")
   from("$rootDir/gradle/jar.gradle")
+  from("$rootDir/gradle/apispec-validation.gradle")
 }
 
 // ------------ Integration test source set (WireMock-backed, no external services needed) ------------
@@ -36,6 +37,11 @@ configurations {
   integrationTestImplementation.extendsFrom testImplementation
   integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
   integrationTestCompileOnly.extendsFrom testCompileOnly
+
+  // validateApiSpecVersions (gradle/apispec-validation.gradle) resolves this configuration to
+  // reject draft/SHA-suffixed OpenAPI contract versions in release builds.
+  apiSpec
+  implementation.extendsFrom apiSpec
 }
 
 tasks.register('integrationTest', Test) {
@@ -87,8 +93,10 @@ dependencies {
   }
 
   // Address Lookup API contract (generated interfaces/models) - published from
-  // api-cp-crime-address-lookup; this service implements AddressSearchApi.
-  implementation 'uk.gov.hmcts.cp:api-cp-crime-address-lookup:0.0.1'
+  // api-cp-crime-address-lookup; this service implements AddressSearchApi. In the apiSpec
+  // configuration (not plain implementation) so validateApiSpecVersions can gate release builds
+  // against draft/SHA-suffixed contract versions.
+  apiSpec 'uk.gov.hmcts.cp:api-cp-crime-address-lookup:0.0.1'
   // swagger-annotations is compileOnly in the contract jar (not published transitively), but its
   // generated interfaces reference these annotation classes - needed here to compile against them.
   compileOnly 'io.swagger.core.v3:swagger-annotations:2.2.55'
