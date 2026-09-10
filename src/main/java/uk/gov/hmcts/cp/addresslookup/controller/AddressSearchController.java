@@ -19,15 +19,23 @@ public class AddressSearchController implements AddressSearchApi {
 
     @Override
     public ResponseEntity<AddressSearchResponse> searchByPostcode(final String postcode, final AddressResponseInclude include) {
-        log.debug("searchByPostcode postcode={} include={}", postcode, include);
+        log.debug("searchByPostcode postcode={} include={}", sanitizeForLog(postcode), include);
         final boolean includeDpa = include == AddressResponseInclude.DPA;
         return ResponseEntity.ok(addressSearchService.searchByPostcode(postcode, includeDpa));
     }
 
     @Override
     public ResponseEntity<AddressSearchResponse> searchAddresses(final String address, final AddressResponseInclude include) {
-        log.debug("searchAddresses address={} include={}", address, include);
+        log.debug("searchAddresses address={} include={}", sanitizeForLog(address), include);
         final boolean includeDpa = include == AddressResponseInclude.DPA;
         return ResponseEntity.ok(addressSearchService.searchByAddress(address, includeDpa));
+    }
+
+    /**
+     * Strips CR/LF from user-supplied input before logging it, so a caller can't inject fake log
+     * lines (log forging) via a crafted {@code postcode}/{@code address} query parameter.
+     */
+    private static String sanitizeForLog(final String value) {
+        return value == null ? null : value.replaceAll("[\r\n]", "_");
     }
 }
