@@ -21,6 +21,10 @@ import uk.gov.hmcts.cp.openapi.model.al.DegradedReason;
 public final class CanonicalAddressMapper {
 
     private static final int MAX_LINE_LENGTH = 35;
+    private static final int ADDRESS2_LINE_INDEX = 1;
+    private static final int ADDRESS3_LINE_INDEX = 2;
+    private static final int ADDRESS4_LINE_INDEX = 3;
+    private static final int ADDRESS5_LINE_INDEX = 4;
 
     private CanonicalAddressMapper() {
     }
@@ -43,17 +47,17 @@ public final class CanonicalAddressMapper {
                 .address1(truncate(lines.get(0)))
                 .postcode(postcode)
                 .uprn(uprn);
-        if (lines.size() > 1) {
-            candidate.address2(truncate(lines.get(1)));
+        if (lines.size() > ADDRESS2_LINE_INDEX) {
+            candidate.address2(truncate(lines.get(ADDRESS2_LINE_INDEX)));
         }
-        if (lines.size() > 2) {
-            candidate.address3(truncate(lines.get(2)));
+        if (lines.size() > ADDRESS3_LINE_INDEX) {
+            candidate.address3(truncate(lines.get(ADDRESS3_LINE_INDEX)));
         }
-        if (lines.size() > 3) {
-            candidate.address4(truncate(lines.get(3)));
+        if (lines.size() > ADDRESS4_LINE_INDEX) {
+            candidate.address4(truncate(lines.get(ADDRESS4_LINE_INDEX)));
         }
-        if (lines.size() > 4) {
-            candidate.address5(truncate(lines.get(4)));
+        if (lines.size() > ADDRESS5_LINE_INDEX) {
+            candidate.address5(truncate(lines.get(ADDRESS5_LINE_INDEX)));
         }
         // The generated model's dpa field defaults to an empty (not null) HashMap, which would
         // otherwise serialize as "dpa":{} even when include=dpa wasn't requested; set it
@@ -83,25 +87,23 @@ public final class CanonicalAddressMapper {
     private static String joinNonBlank(final String first, final String second) {
         final boolean hasFirst = first != null && !first.isBlank();
         final boolean hasSecond = second != null && !second.isBlank();
+        final String joined;
         if (hasFirst && hasSecond) {
-            return first.trim() + " " + second.trim();
+            joined = first.trim() + " " + second.trim();
+        } else if (hasFirst) {
+            joined = first.trim();
+        } else if (hasSecond) {
+            joined = second.trim();
+        } else {
+            joined = null;
         }
-        if (hasFirst) {
-            return first.trim();
-        }
-        if (hasSecond) {
-            return second.trim();
-        }
-        return null;
+        return joined;
     }
 
     private static String fieldValue(final Map<String, Object> dpa, final String field) {
         final Object value = dpa.get(field);
-        if (value == null) {
-            return null;
-        }
-        final String text = String.valueOf(value).trim();
-        return text.isEmpty() ? null : text;
+        final String text = value == null ? null : String.valueOf(value).trim();
+        return text == null || text.isEmpty() ? null : text;
     }
 
     private static String truncate(final String value) {

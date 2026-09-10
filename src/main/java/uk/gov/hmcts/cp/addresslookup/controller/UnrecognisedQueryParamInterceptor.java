@@ -34,21 +34,17 @@ public class UnrecognisedQueryParamInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(final HttpServletRequest request, final HttpServletResponse response,
             final Object handler) {
-        if (!(handler instanceof HandlerMethod handlerMethod)) {
-            return true;
-        }
-
-        final Set<String> allowed = declaredRequestParamNames(handlerMethod);
-        if (allowed.isEmpty()) {
-            return true;
-        }
-
-        final Enumeration<String> paramNames = request.getParameterNames();
-        while (paramNames.hasMoreElements()) {
-            final String paramName = paramNames.nextElement();
-            if (!allowed.contains(paramName)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Unrecognised query parameter '" + paramName + "'");
+        if (handler instanceof HandlerMethod handlerMethod) {
+            final Set<String> allowed = declaredRequestParamNames(handlerMethod);
+            if (!allowed.isEmpty()) {
+                final Enumeration<String> paramNames = request.getParameterNames();
+                while (paramNames.hasMoreElements()) {
+                    final String paramName = paramNames.nextElement();
+                    if (!allowed.contains(paramName)) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                "Unrecognised query parameter '" + paramName + "'");
+                    }
+                }
             }
         }
         return true;
@@ -59,7 +55,7 @@ public class UnrecognisedQueryParamInterceptor implements HandlerInterceptor {
         for (final MethodParameter parameter : handlerMethod.getMethodParameters()) {
             final RequestParam requestParam = parameter.getParameterAnnotation(RequestParam.class);
             if (requestParam != null) {
-                names.add(!requestParam.name().isBlank() ? requestParam.name() : parameter.getParameterName());
+                names.add(requestParam.name().isBlank() ? parameter.getParameterName() : requestParam.name());
             }
         }
         return names;

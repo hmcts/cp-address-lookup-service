@@ -29,11 +29,12 @@ public class OsPlacesKeyHealthIndicator implements HealthIndicator {
     @Override
     public Health health() {
         final boolean keyPresent = properties.apiKey() != null && !properties.apiKey().isBlank();
+        final Health.Builder builder;
         if (properties.keyRequired() && !keyPresent) {
-            return Health.down()
-                    .withDetail("reason", "os-places-key is required on this tier but is absent")
-                    .build();
+            builder = Health.down().withDetail("reason", "os-places-key is required on this tier but is absent");
+        } else {
+            builder = Health.up();
         }
-        return Health.up().build();
+        return builder.build();
     }
 }

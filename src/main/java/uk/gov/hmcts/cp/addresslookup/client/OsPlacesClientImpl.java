@@ -74,29 +74,30 @@ public class OsPlacesClientImpl implements OsPlacesClient {
             throw degraded(DegradedReason.UPSTREAM_CONTRACT, null, "OS Places response could not be read", ex);
         }
 
+        final List<Map<String, Object>> results;
         if (response == null || response.results() == null) {
-            return List.of();
+            results = List.of();
+        } else {
+            results = response.results().stream()
+                    .map(OsPlacesResult::dpa)
+                    .filter(Objects::nonNull)
+                    .toList();
         }
-        return response.results().stream()
-                .map(OsPlacesResult::dpa)
-                .filter(Objects::nonNull)
-                .toList();
+        return results;
     }
 
     private static Integer retryAfterSeconds(final HttpClientErrorException ex) {
+        Integer seconds = null;
         final HttpHeaders headers = ex.getResponseHeaders();
-        if (headers == null) {
-            return null;
+        final String retryAfter = headers == null ? null : headers.getFirst(HttpHeaders.RETRY_AFTER);
+        if (retryAfter != null) {
+            try {
+                seconds = Integer.valueOf(retryAfter.trim());
+            } catch (final NumberFormatException ignored) {
+                // seconds stays null (already initialised above)
+            }
         }
-        final String retryAfter = headers.getFirst(HttpHeaders.RETRY_AFTER);
-        if (retryAfter == null) {
-            return null;
-        }
-        try {
-            return Integer.valueOf(retryAfter.trim());
-        } catch (final NumberFormatException ignored) {
-            return null;
-        }
+        return seconds;
     }
 
     private static DegradedModeException degraded(final DegradedReason reason, final Integer retryAfterSeconds,

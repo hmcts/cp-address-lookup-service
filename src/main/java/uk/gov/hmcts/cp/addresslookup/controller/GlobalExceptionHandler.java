@@ -111,29 +111,37 @@ public class GlobalExceptionHandler {
                 .traceId(traceId());
     }
 
+    // Deliberately broad: currentSpan()/context() can throw various runtime exceptions depending
+    // on the tracer implementation and whether a span is active, and a trace-ID lookup failure
+    // must never break the actual error response being built.
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private String traceId() {
+        String id = null;
         try {
-            return Objects.requireNonNull(tracer.currentSpan()).context().traceId();
+            id = Objects.requireNonNull(tracer.currentSpan()).context().traceId();
         } catch (final RuntimeException ignored) {
-            return null;
+            // id stays null (already initialised above)
         }
+        return id;
     }
 
     private static MediaType responseMediaType(final HttpServletRequest request) {
+        MediaType mediaType = MediaType.APPLICATION_JSON;
         final String accept = request.getHeader(HttpHeaders.ACCEPT);
         if (accept != null) {
             for (final String candidate : accept.split(",")) {
                 final String trimmed = candidate.trim();
                 if (trimmed.startsWith(VENDOR_MEDIA_TYPE_PREFIX)) {
                     try {
-                        return MediaType.parseMediaType(trimmed);
+                        mediaType = MediaType.parseMediaType(trimmed);
                     } catch (final InvalidMediaTypeException ignored) {
-                        break;
+                        mediaType = MediaType.APPLICATION_JSON;
                     }
+                    break;
                 }
             }
         }
-        return MediaType.APPLICATION_JSON;
+        return mediaType;
     }
 
     private static String formatViolation(final ConstraintViolation<?> violation) {
