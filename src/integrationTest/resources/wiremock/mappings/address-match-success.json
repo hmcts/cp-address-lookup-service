@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/search/places/v1/find",
+    "queryParameters": {
+      "query": { "equalTo": "10 Downing Street" },
+      "maxresults": { "equalTo": "1" },
+      "minmatch": { "equalTo": "0.7" },
+      "key": { "equalTo": "test-api-key" }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "bodyFileName": "address-match-success-body.json"
+  }
+}

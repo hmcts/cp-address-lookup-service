@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,5 +93,59 @@ class AddressSearchServiceImplTest {
         service.searchByAddress(" 10 Downing Street ", false);
 
         verify(osPlacesClient).searchByAddress(" 10 Downing Street ");
+    }
+
+    @Test
+    void find_match_maps_the_best_candidate_with_its_score() {
+        final Map<String, Object> dpa = new HashMap<>();
+        dpa.put("UPRN", "10033544886");
+        dpa.put("BUILDING_NUMBER", "10");
+        dpa.put("THOROUGHFARE_NAME", "Downing Street");
+        dpa.put("POSTCODE", "SW1A 1AA");
+        dpa.put("MATCH", "0.95");
+        when(osPlacesClient.findBestMatch("10 Downing Street", new BigDecimal("0.7"))).thenReturn(List.of(dpa));
+
+        final AddressSearchResponse response = service.findMatch("10 Downing Street", new BigDecimal("0.7"));
+
+        assertThat(response.getResults()).hasSize(1);
+        assertThat(response.getResults().get(0).getMatch()).isEqualByComparingTo(new BigDecimal("0.95"));
+        assertThat(response.getResults().get(0).getDpa()).isNull();
+    }
+
+    @Test
+    void find_match_returns_empty_results_for_a_nonsense_address() {
+        when(osPlacesClient.findBestMatch("gibberish", new BigDecimal("0.7"))).thenReturn(List.of());
+
+        final AddressSearchResponse response = service.findMatch("gibberish", new BigDecimal("0.7"));
+
+        assertThat(response.getResults()).isEmpty();
+    }
+
+    @Test
+    void find_match_caps_to_at_most_one_candidate_even_if_the_client_returns_more() {
+        final Map<String, Object> first = new HashMap<>();
+        first.put("UPRN", "10033544886");
+        first.put("BUILDING_NUMBER", "10");
+        first.put("THOROUGHFARE_NAME", "Downing Street");
+        first.put("POSTCODE", "SW1A 1AA");
+        final Map<String, Object> second = new HashMap<>();
+        second.put("UPRN", "10033544887");
+        second.put("BUILDING_NUMBER", "11");
+        second.put("THOROUGHFARE_NAME", "Downing Street");
+        second.put("POSTCODE", "SW1A 1AA");
+        when(osPlacesClient.findBestMatch("10 Downing Street", null)).thenReturn(List.of(first, second));
+
+        final AddressSearchResponse response = service.findMatch("10 Downing Street", null);
+
+        assertThat(response.getResults()).hasSize(1);
+    }
+
+    @Test
+    void find_match_passes_min_match_through_unmodified() {
+        when(osPlacesClient.findBestMatch(eq("10 Downing Street"), eq(new BigDecimal("0.9")))).thenReturn(List.of());
+
+        service.findMatch("10 Downing Street", new BigDecimal("0.9"));
+
+        verify(osPlacesClient).findBestMatch("10 Downing Street", new BigDecimal("0.9"));
     }
 }

@@ -9,6 +9,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -220,5 +221,52 @@ class OsPlacesClientImplTest {
                 .isInstanceOf(DegradedModeException.class)
                 .extracting(ex -> ((DegradedModeException) ex).getReason())
                 .isEqualTo(DegradedReason.UPSTREAM_TIMEOUT);
+    }
+
+    @Test
+    void find_best_match_sends_minmatch_and_maxresults_of_one() {
+        server.expect(requestTo(BASE_URL
+                        + "/search/places/v1/find?query=10%20Downing%20Street&maxresults=1&minmatch=0.7&key=test-key"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("""
+                        {"results":[{"DPA":{"UPRN":"10033544886","BUILDING_NUMBER":"10","THOROUGHFARE_NAME":"Downing Street","POSTCODE":"SW1A 1AA","MATCH":"0.95"}}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        final List<Map<String, Object>> results = client.findBestMatch("10 Downing Street", new BigDecimal("0.7"));
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0)).containsEntry("MATCH", "0.95");
+        server.verify();
+    }
+
+    @Test
+    void find_best_match_omits_minmatch_when_not_provided() {
+        server.expect(requestTo(BASE_URL + "/search/places/v1/find?query=10%20Downing%20Street&maxresults=1&key=test-key"))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        client.findBestMatch("10 Downing Street", null);
+
+        server.verify();
+    }
+
+    @Test
+    void find_best_match_returns_empty_list_for_a_nonsense_address() {
+        server.expect(requestTo(BASE_URL
+                        + "/search/places/v1/find?query=complete%20nonsense&maxresults=1&minmatch=0.7&key=test-key"))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        assertThat(client.findBestMatch("complete nonsense", new BigDecimal("0.7"))).isEmpty();
+    }
+
+    @Test
+    void find_best_match_maps_401_to_upstream_auth() {
+        server.expect(requestTo(BASE_URL
+                        + "/search/places/v1/find?query=10%20Downing%20Street&maxresults=1&minmatch=0.7&key=test-key"))
+                .andRespond(withStatus(HttpStatus.UNAUTHORIZED).body("{}"));
+
+        assertThatThrownBy(() -> client.findBestMatch("10 Downing Street", new BigDecimal("0.7")))
+                .isInstanceOf(DegradedModeException.class)
+                .extracting(ex -> ((DegradedModeException) ex).getReason())
+                .isEqualTo(DegradedReason.UPSTREAM_AUTH);
     }
 }

@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/search/places/v1/find",
+    "queryParameters": {
+      "query": { "equalTo": "complete gibberish nonsense" },
+      "maxresults": { "equalTo": "1" },
+      "minmatch": { "equalTo": "0.7" }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "bodyFileName": "address-match-zero-matches-body.json"
+  }
+}

@@ -3,6 +3,7 @@ package uk.gov.hmcts.cp.addresslookup.transform;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -99,5 +100,46 @@ class CanonicalAddressMapperTest {
 
         assertThatThrownBy(() -> CanonicalAddressMapper.toCandidate(dpa, false))
                 .isInstanceOf(DegradedModeException.class);
+    }
+
+    @Test
+    void maps_the_match_score_when_present() {
+        final Map<String, Object> dpa = new HashMap<>();
+        dpa.put("UPRN", "10033544886");
+        dpa.put("BUILDING_NUMBER", "10");
+        dpa.put("THOROUGHFARE_NAME", "Downing Street");
+        dpa.put("POSTCODE", "SW1A 1AA");
+        dpa.put("MATCH", "0.95");
+
+        final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
+
+        assertThat(candidate.getMatch()).isEqualByComparingTo(new BigDecimal("0.95"));
+    }
+
+    @Test
+    void leaves_match_unset_when_absent() {
+        final Map<String, Object> dpa = new HashMap<>();
+        dpa.put("UPRN", "10033544886");
+        dpa.put("BUILDING_NUMBER", "10");
+        dpa.put("THOROUGHFARE_NAME", "Downing Street");
+        dpa.put("POSTCODE", "SW1A 1AA");
+
+        final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
+
+        assertThat(candidate.getMatch()).isNull();
+    }
+
+    @Test
+    void leaves_match_unset_when_unparseable() {
+        final Map<String, Object> dpa = new HashMap<>();
+        dpa.put("UPRN", "10033544886");
+        dpa.put("BUILDING_NUMBER", "10");
+        dpa.put("THOROUGHFARE_NAME", "Downing Street");
+        dpa.put("POSTCODE", "SW1A 1AA");
+        dpa.put("MATCH", "not-a-number");
+
+        final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
+
+        assertThat(candidate.getMatch()).isNull();
     }
 }
