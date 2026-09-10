@@ -11,7 +11,10 @@ tasks.named('test') {
   testLogging {
     events "passed", "skipped", "failed"
     exceptionFormat = 'full'
-    showStandardStreams = true
+    // Captured stdout/stderr (Spring Boot startup banner, JSON app logs, etc.) is still
+    // attached to failed tests and the HTML/XML reports - this only stops it being echoed
+    // live for every passing test.
+    showStandardStreams = false
   }
   reports {
     junitXml.required.set(true)

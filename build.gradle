@@ -22,6 +22,49 @@ apply {
   from("$rootDir/gradle/jar.gradle")
 }
 
+// ------------ Integration test source set (WireMock-backed, no external services needed) ------------
+sourceSets {
+  integrationTest {
+    java.srcDir 'src/integrationTest/java'
+    resources.srcDir 'src/integrationTest/resources'
+    compileClasspath += sourceSets.main.output + configurations.integrationTestCompileClasspath
+    runtimeClasspath += sourceSets.main.output + configurations.integrationTestRuntimeClasspath
+  }
+}
+
+configurations {
+  integrationTestImplementation.extendsFrom testImplementation
+  integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
+  integrationTestCompileOnly.extendsFrom testCompileOnly
+}
+
+tasks.register('integrationTest', Test) {
+  description = 'Runs postcode search integration tests (real Spring context, WireMock stands in for OS Places)'
+  group = 'verification'
+  testClassesDirs = sourceSets.integrationTest.output.classesDirs
+  classpath = sourceSets.integrationTest.runtimeClasspath
+  useJUnitPlatform()
+  shouldRunAfter tasks.named('test')
+  testLogging {
+    events 'passed', 'skipped', 'failed'
+    exceptionFormat = 'full'
+  }
+}
+
+// Same duplicate-entry Gradle bug as processTestResources (gradle/gradle#17236), triggered once
+// real files exist under src/integrationTest/resources.
+tasks.named('processIntegrationTestResources') {
+  duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
+// PMD is not run on test code in this project (see gradle/pmd.gradle's pmdTest); apply the same
+// policy to integration test sources.
+tasks.named('pmdIntegrationTest') {
+  enabled = false
+}
+
+tasks.named('check') { dependsOn tasks.named('integrationTest') }
+
 // We MUST keep all dependencies in the build.gradle to allow dependabot to provide version updates
 // Sadly, dependabot does not track dependencies in the apply-from files
 dependencies {
@@ -35,12 +78,29 @@ dependencies {
 
   // Spring boot core
   implementation 'org.springframework.boot:spring-boot-starter-web'
+  implementation 'org.springframework.boot:spring-boot-starter-validation'
+  implementation 'org.springframework.boot:spring-boot-starter-restclient'
   testImplementation "org.springframework.boot:spring-boot-starter-webmvc-test"
   testImplementation('org.springframework.boot:spring-boot-starter-test') {
     exclude group: 'junit', module: 'junit'
     exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
   }
 
+  // Address Lookup API contract (generated interfaces/models) - published from
+  // api-cp-crime-address-lookup; this service implements AddressSearchApi.
+  implementation 'uk.gov.hmcts.cp:api-cp-crime-address-lookup:0.0.1'
+  // swagger-annotations is compileOnly in the contract jar (not published transitively), but its
+  // generated interfaces reference these annotation classes - needed here to compile against them.
+  compileOnly 'io.swagger.core.v3:swagger-annotations:2.2.55'
+  testCompileOnly 'io.swagger.core.v3:swagger-annotations:2.2.55'
+
+  // Integration tests: WireMock stands in for OS Places. The -standalone artifact shades its own
+  // Jackson/Guava, so it can't clash with the app's own Jackson (Spring Boot 4/Jackson 3) on the
+  // integrationTest classpath.
+  integrationTestImplementation 'org.wiremock:wiremock-standalone:3.9.2'
+  // Real HTTP round-trip against a randomly-bound embedded server, rather than MockMvc's
+  // in-process dispatch simulation - TestRestTemplate moved to this module in Spring Boot 4.
+  integrationTestImplementation 'org.springframework.boot:spring-boot-resttestclient'
 
   // --- Observability / Actuator / OTEL / Prometheus ---
   implementation 'org.springframework.boot:spring-boot-starter-actuator'
