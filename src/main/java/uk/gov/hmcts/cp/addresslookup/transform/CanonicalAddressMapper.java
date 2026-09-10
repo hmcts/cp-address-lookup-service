@@ -1,5 +1,6 @@
 package uk.gov.hmcts.cp.addresslookup.transform;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -63,6 +64,18 @@ public final class CanonicalAddressMapper {
         // otherwise serialize as "dpa":{} even when include=dpa wasn't requested; set it
         // explicitly to null so Jackson's non_null inclusion policy omits it.
         candidate.setDpa(includeDpa ? dpa : null);
+
+        // OS Places only includes a MATCH field on /find results (the postcode/free-text search
+        // operations don't send minmatch, so their DPA records never carry one); a malformed
+        // value is an OS contract surprise, not something worth failing the whole mapping over.
+        final String matchValue = fieldValue(dpa, "MATCH");
+        if (matchValue != null) {
+            try {
+                candidate.match(new BigDecimal(matchValue));
+            } catch (final NumberFormatException ignored) {
+                // leave match unset
+            }
+        }
         return candidate;
     }
 

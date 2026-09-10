@@ -1,5 +1,6 @@
 package uk.gov.hmcts.cp.addresslookup.service;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -15,6 +16,8 @@ import uk.gov.hmcts.cp.openapi.model.al.AddressSearchResponse;
 @RequiredArgsConstructor
 public class AddressSearchServiceImpl implements AddressSearchService {
 
+    private static final int MAX_MATCH_RESULTS = 1;
+
     private final OsPlacesClient osPlacesClient;
 
     @Override
@@ -25,6 +28,15 @@ public class AddressSearchServiceImpl implements AddressSearchService {
     @Override
     public AddressSearchResponse searchByAddress(final String address, final boolean includeDpa) {
         return toResponse(osPlacesClient.searchByAddress(address), includeDpa);
+    }
+
+    @Override
+    public AddressSearchResponse findMatch(final String address, final BigDecimal minMatch) {
+        final List<AddressCandidate> candidates = osPlacesClient.findBestMatch(address, minMatch).stream()
+                .map(dpa -> CanonicalAddressMapper.toCandidate(dpa, false))
+                .limit(MAX_MATCH_RESULTS)
+                .toList();
+        return new AddressSearchResponse(candidates);
     }
 
     private static AddressSearchResponse toResponse(final List<Map<String, Object>> dpaRecords,

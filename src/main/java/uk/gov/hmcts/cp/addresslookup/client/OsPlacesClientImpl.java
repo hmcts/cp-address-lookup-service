@@ -1,5 +1,6 @@
 package uk.gov.hmcts.cp.addresslookup.client;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +52,19 @@ public class OsPlacesClientImpl implements OsPlacesClient {
                 .queryParam("query", address)
                 .queryParam("key", apiKey)
                 .build());
+    }
+
+    @Override
+    public List<Map<String, Object>> findBestMatch(final String address, final BigDecimal minMatch) {
+        return executeSearch(uriBuilder -> {
+            uriBuilder.path(FIND_PATH)
+                    .queryParam("query", address)
+                    .queryParam("maxresults", 1);
+            if (minMatch != null) {
+                uriBuilder.queryParam("minmatch", minMatch);
+            }
+            return uriBuilder.queryParam("key", apiKey).build();
+        });
     }
 
     private List<Map<String, Object>> executeSearch(final Function<UriBuilder, URI> uriCustomizer) {
