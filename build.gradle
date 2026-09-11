@@ -105,7 +105,7 @@ dependencies {
   // Integration tests: WireMock stands in for OS Places. The -standalone artifact shades its own
   // Jackson/Guava, so it can't clash with the app's own Jackson (Spring Boot 4/Jackson 3) on the
   // integrationTest classpath.
-  integrationTestImplementation 'org.wiremock:wiremock-standalone:3.9.2'
+  integrationTestImplementation 'org.wiremock:wiremock-standalone:3.13.2'
   // Real HTTP round-trip against a randomly-bound embedded server, rather than MockMvc's
   // in-process dispatch simulation - TestRestTemplate moved to this module in Spring Boot 4.
   integrationTestImplementation 'org.springframework.boot:spring-boot-resttestclient'
