@@ -97,9 +97,20 @@ class OsPlacesClientImplTest {
     }
 
     @Test
-    void maps_5xx_to_upstream_timeout() {
+    void maps_500_to_upstream_server_error() {
         server.expect(requestTo(BASE_URL + "/search/places/v1/postcode?postcode=SW1A%201AA&key=test-key"))
                 .andRespond(withServerError());
+
+        assertThatThrownBy(() -> client.searchByPostcode("SW1A 1AA"))
+                .isInstanceOf(DegradedModeException.class)
+                .extracting(ex -> ((DegradedModeException) ex).getReason())
+                .isEqualTo(DegradedReason.UPSTREAM_SERVER_ERROR);
+    }
+
+    @Test
+    void maps_503_to_upstream_timeout() {
+        server.expect(requestTo(BASE_URL + "/search/places/v1/postcode?postcode=SW1A%201AA&key=test-key"))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE).body("{}"));
 
         assertThatThrownBy(() -> client.searchByPostcode("SW1A 1AA"))
                 .isInstanceOf(DegradedModeException.class)
@@ -191,14 +202,14 @@ class OsPlacesClientImplTest {
     }
 
     @Test
-    void address_search_maps_5xx_to_upstream_timeout() {
+    void address_search_maps_500_to_upstream_server_error() {
         server.expect(requestTo(BASE_URL + "/search/places/v1/find?query=10%20Downing%20Street&key=test-key"))
                 .andRespond(withServerError());
 
         assertThatThrownBy(() -> client.searchByAddress("10 Downing Street"))
                 .isInstanceOf(DegradedModeException.class)
                 .extracting(ex -> ((DegradedModeException) ex).getReason())
-                .isEqualTo(DegradedReason.UPSTREAM_TIMEOUT);
+                .isEqualTo(DegradedReason.UPSTREAM_SERVER_ERROR);
     }
 
     @Test

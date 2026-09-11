@@ -134,14 +134,14 @@ class AddressSearchPostcodeIntegrationTest {
     }
 
     @Test
-    void returns_503_degraded_upstream_timeout_when_os_places_returns_5xx() {
+    void returns_503_degraded_upstream_server_error_when_os_places_returns_500() {
         final ResponseEntity<DegradedResponse> response = postcodeSearch(
                 addressesPostcode().queryParam("postcode", "SW1A 4AA"), DegradedResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
         assertThat(response.getHeaders().getContentType()).isEqualTo(MEDIA_TYPE);
         assertThat(response.getBody().getDegraded()).isTrue();
-        assertThat(response.getBody().getReason().getValue()).isEqualTo("upstream-timeout");
+        assertThat(response.getBody().getReason().getValue()).isEqualTo("upstream-server-error");
     }
 
     @Test
