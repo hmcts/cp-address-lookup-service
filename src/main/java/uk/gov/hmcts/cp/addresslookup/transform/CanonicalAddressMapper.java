@@ -13,19 +13,22 @@ import uk.gov.hmcts.cp.openapi.model.al.DegradedReason;
  * Maps a raw OS Places DPA record to the canonical CP {@link AddressCandidate} contract
  * (address1-5, postcode, uprn). Pure function - no Spring context needed to test it.
  *
- * <p>OS Places does not have a single "address line" field; DPA splits a premise across several
- * fields (sub-building, building, thoroughfare, locality, town). This mapper packs those fields,
- * in the order below, into address1-5, dropping any that are blank - e.g. for "10 Downing Street"
- * (BUILDING_NUMBER="10", THOROUGHFARE_NAME="Downing Street", everything else blank) this yields
- * address1="10", address2="Downing Street", matching the contract's own example.
+ * <p>address4 and address5 are fixed, dedicated fields - always {@code POST_TOWN} and
+ * {@code LOCAL_CUSTODIAN_CODE_DESCRIPTION} respectively when OS Places supplies them, never part
+ * of the dynamic packing below. Only address1-3 are built dynamically from whichever of
+ * organisation/sub-building/building/number+street/dependent-locality are non-blank, in that
+ * order - e.g. for "10 Downing Street" (BUILDING_NUMBER="10", THOROUGHFARE_NAME="Downing Street")
+ * this yields a single address1="10 Downing Street" (building number and street combine onto one
+ * line; BUILDING_NAME, a named building as distinct from a numbered one, is always its own line).
+ * A named premise with no street-level fields at all (e.g. Buckingham Palace, which OS Places
+ * records only via ORGANISATION_NAME) yields address1="BUCKINGHAM PALACE".
  */
 public final class CanonicalAddressMapper {
 
     private static final int MAX_LINE_LENGTH = 35;
+    private static final int MAX_DYNAMIC_LINES = 3;
     private static final int ADDRESS2_LINE_INDEX = 1;
     private static final int ADDRESS3_LINE_INDEX = 2;
-    private static final int ADDRESS4_LINE_INDEX = 3;
-    private static final int ADDRESS5_LINE_INDEX = 4;
 
     private CanonicalAddressMapper() {
     }
@@ -54,12 +57,16 @@ public final class CanonicalAddressMapper {
         if (lines.size() > ADDRESS3_LINE_INDEX) {
             candidate.address3(truncate(lines.get(ADDRESS3_LINE_INDEX)));
         }
-        if (lines.size() > ADDRESS4_LINE_INDEX) {
-            candidate.address4(truncate(lines.get(ADDRESS4_LINE_INDEX)));
+
+        final String postTown = fieldValue(dpa, "POST_TOWN");
+        if (postTown != null) {
+            candidate.address4(truncate(postTown));
         }
-        if (lines.size() > ADDRESS5_LINE_INDEX) {
-            candidate.address5(truncate(lines.get(ADDRESS5_LINE_INDEX)));
+        final String localCustodianCodeDescription = fieldValue(dpa, "LOCAL_CUSTODIAN_CODE_DESCRIPTION");
+        if (localCustodianCodeDescription != null) {
+            candidate.address5(truncate(localCustodianCodeDescription));
         }
+
         // The generated model's dpa field defaults to an empty (not null) HashMap, which would
         // otherwise serialize as "dpa":{} even when include=dpa wasn't requested; set it
         // explicitly to null so Jackson's non_null inclusion policy omits it.
@@ -81,18 +88,16 @@ public final class CanonicalAddressMapper {
 
     private static List<String> addressLines(final Map<String, Object> dpa) {
         final List<String> lines = new ArrayList<>();
+        addIfNotBlank(lines, fieldValue(dpa, "ORGANISATION_NAME"));
         addIfNotBlank(lines, fieldValue(dpa, "SUB_BUILDING_NAME"));
-        addIfNotBlank(lines, joinNonBlank(fieldValue(dpa, "BUILDING_NUMBER"), fieldValue(dpa, "BUILDING_NAME")));
-        addIfNotBlank(lines,
-                joinNonBlank(fieldValue(dpa, "DEPENDENT_THOROUGHFARE_NAME"), fieldValue(dpa, "THOROUGHFARE_NAME")));
-        addIfNotBlank(lines, fieldValue(dpa, "DOUBLE_DEPENDENT_LOCALITY"));
+        addIfNotBlank(lines, fieldValue(dpa, "BUILDING_NAME"));
+        addIfNotBlank(lines, joinNonBlank(fieldValue(dpa, "BUILDING_NUMBER"), fieldValue(dpa, "THOROUGHFARE_NAME")));
         addIfNotBlank(lines, fieldValue(dpa, "DEPENDENT_LOCALITY"));
-        addIfNotBlank(lines, fieldValue(dpa, "POST_TOWN"));
         return lines;
     }
 
     private static void addIfNotBlank(final List<String> lines, final String value) {
-        if (value != null && !value.isBlank() && lines.size() < 5) {
+        if (value != null && !value.isBlank() && lines.size() < MAX_DYNAMIC_LINES) {
             lines.add(value);
         }
     }

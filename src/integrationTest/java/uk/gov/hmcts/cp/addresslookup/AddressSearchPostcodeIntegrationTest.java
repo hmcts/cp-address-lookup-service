@@ -84,9 +84,10 @@ class AddressSearchPostcodeIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getHeaders().getContentType()).isEqualTo(MEDIA_TYPE);
         assertThat(response.getBody().getResults()).hasSize(1);
-        assertThat(response.getBody().getResults().get(0).getAddress1()).isEqualTo("10");
-        assertThat(response.getBody().getResults().get(0).getAddress2()).isEqualTo("Downing Street");
-        assertThat(response.getBody().getResults().get(0).getAddress3()).isEqualTo("LONDON");
+        assertThat(response.getBody().getResults().get(0).getAddress1()).isEqualTo("10 Downing Street");
+        assertThat(response.getBody().getResults().get(0).getAddress2()).isNull();
+        assertThat(response.getBody().getResults().get(0).getAddress3()).isNull();
+        assertThat(response.getBody().getResults().get(0).getAddress4()).isEqualTo("LONDON");
         assertThat(response.getBody().getResults().get(0).getPostcode()).isEqualTo("SW1A 1AA");
         assertThat(response.getBody().getResults().get(0).getUprn()).isEqualTo("10033544886");
         // The wire body omits "dpa" entirely when include=dpa wasn't requested (verified at unit
