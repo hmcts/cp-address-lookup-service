@@ -78,6 +78,8 @@ public class OsPlacesClientImpl implements OsPlacesClient {
             throw degraded(DegradedReason.UPSTREAM_RATE_LIMIT, retryAfterSeconds(ex), "OS Places rate limit exceeded", ex);
         } catch (final HttpClientErrorException.Unauthorized | HttpClientErrorException.Forbidden ex) {
             throw degraded(DegradedReason.UPSTREAM_AUTH, null, "OS Places rejected the configured API key", ex);
+        } catch (final HttpServerErrorException.InternalServerError ex) {
+            throw degraded(DegradedReason.UPSTREAM_SERVER_ERROR, null, "OS Places returned a 500 Internal Server Error", ex);
         } catch (final HttpServerErrorException ex) {
             throw degraded(DegradedReason.UPSTREAM_TIMEOUT, null, "OS Places returned a server error", ex);
         } catch (final HttpClientErrorException ex) {
