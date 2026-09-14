@@ -9,6 +9,7 @@ import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import java.net.URI;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.boot.resttestclient.TestRestTemplate;
@@ -24,6 +25,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.util.UriComponentsBuilder;
+
+import com.github.benmanes.caffeine.cache.Cache;
 
 import jakarta.annotation.Resource;
 import uk.gov.hmcts.cp.openapi.model.al.AddressSearchResponse;
@@ -65,15 +68,16 @@ class AddressSearchPostcodeIntegrationTest {
     @Resource
     private TestRestTemplate restTemplate;
 
-    private <T> ResponseEntity<T> postcodeSearch(final UriComponentsBuilder query, final Class<T> responseType) {
-        final URI uri = query.build().encode().toUri();
-        final HttpHeaders headers = new HttpHeaders();
-        headers.setAccept(List.of(MEDIA_TYPE));
-        return restTemplate.exchange(uri, HttpMethod.GET, new HttpEntity<>(headers), responseType);
-    }
+    @Resource
+    private Cache<String, AddressSearchResponse> addressLookupCache;
 
-    private static UriComponentsBuilder addressesPostcode() {
-        return UriComponentsBuilder.fromPath("/addresses/postcode");
+    @BeforeEach
+    void clearCache() {
+        // The Spring context (and therefore the cache bean) is shared across every test method in
+        // this class; without this, whichever test happens to run first for a given postcode
+        // silently pre-warms the cache for every other test reusing it, breaking their WireMock
+        // call-count assertions in an order-dependent way.
+        addressLookupCache.invalidateAll();
     }
 
     @Test
@@ -186,4 +190,28 @@ class AddressSearchPostcodeIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getHeaders().get("key")).isNull();
     }
+
+    @Test
+    void repeating_the_same_search_within_the_cache_ttl_only_calls_os_places_once() {
+        final UriComponentsBuilder query = addressesPostcode().queryParam("postcode", "SW1A 9ZZ");
+
+        postcodeSearch(query, AddressSearchResponse.class);
+        final ResponseEntity<AddressSearchResponse> second = postcodeSearch(query, AddressSearchResponse.class);
+
+        assertThat(second.getStatusCode()).isEqualTo(HttpStatus.OK);
+        osPlaces.verify(1, WireMock.getRequestedFor(WireMock.urlPathEqualTo(OS_PLACES_PATH))
+                .withQueryParam("postcode", WireMock.equalTo("SW1A 9ZZ")));
+    }
+
+    private <T> ResponseEntity<T> postcodeSearch(final UriComponentsBuilder query, final Class<T> responseType) {
+        final URI uri = query.build().encode().toUri();
+        final HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(List.of(MEDIA_TYPE));
+        return restTemplate.exchange(uri, HttpMethod.GET, new HttpEntity<>(headers), responseType);
+    }
+
+    private static UriComponentsBuilder addressesPostcode() {
+        return UriComponentsBuilder.fromPath("/addresses/postcode");
+    }
+
 }

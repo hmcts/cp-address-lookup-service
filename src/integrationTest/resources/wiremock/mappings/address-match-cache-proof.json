@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/search/places/v1/find",
+    "queryParameters": {
+      "query": { "equalTo": "cache proof match street" },
+      "maxresults": { "equalTo": "1" }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "bodyFileName": "address-match-success-body.json"
+  }
+}

@@ -9,6 +9,7 @@ import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import java.net.URI;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.boot.resttestclient.TestRestTemplate;
@@ -24,6 +25,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.util.UriComponentsBuilder;
+
+import com.github.benmanes.caffeine.cache.Cache;
 
 import jakarta.annotation.Resource;
 import uk.gov.hmcts.cp.openapi.model.al.AddressSearchResponse;
@@ -64,15 +67,12 @@ class AddressSearchFreeTextIntegrationTest {
     @Resource
     private TestRestTemplate restTemplate;
 
-    private <T> ResponseEntity<T> addressSearch(final UriComponentsBuilder query, final Class<T> responseType) {
-        final URI uri = query.build().encode().toUri();
-        final HttpHeaders headers = new HttpHeaders();
-        headers.setAccept(List.of(MEDIA_TYPE));
-        return restTemplate.exchange(uri, HttpMethod.GET, new HttpEntity<>(headers), responseType);
-    }
+    @Resource
+    private Cache<String, AddressSearchResponse> addressLookupCache;
 
-    private static UriComponentsBuilder addresses() {
-        return UriComponentsBuilder.fromPath("/addresses");
+    @BeforeEach
+    void clearCache() {
+        addressLookupCache.invalidateAll();
     }
 
     @Test
@@ -127,6 +127,18 @@ class AddressSearchFreeTextIntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getHeaders().get("key")).isNull();
+    }
+
+    @Test
+    void repeating_the_same_search_within_the_cache_ttl_only_calls_os_places_once() {
+        final UriComponentsBuilder query = addresses().queryParam("address", "cache proof street");
+
+        addressSearch(query, AddressSearchResponse.class);
+        final ResponseEntity<AddressSearchResponse> second = addressSearch(query, AddressSearchResponse.class);
+
+        assertThat(second.getStatusCode()).isEqualTo(HttpStatus.OK);
+        osPlaces.verify(1, WireMock.getRequestedFor(WireMock.urlPathEqualTo(OS_PLACES_PATH))
+                .withQueryParam("query", WireMock.equalTo("cache proof street")));
     }
 
     @Test
@@ -194,5 +206,16 @@ class AddressSearchFreeTextIntegrationTest {
 
         osPlaces.verify(0, WireMock.getRequestedFor(WireMock.urlPathEqualTo(OS_PLACES_PATH))
                 .withQueryParam("bbox", WireMock.equalTo("1,2,3,4")));
+    }
+
+    private <T> ResponseEntity<T> addressSearch(final UriComponentsBuilder query, final Class<T> responseType) {
+        final URI uri = query.build().encode().toUri();
+        final HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(List.of(MEDIA_TYPE));
+        return restTemplate.exchange(uri, HttpMethod.GET, new HttpEntity<>(headers), responseType);
+    }
+
+    private static UriComponentsBuilder addresses() {
+        return UriComponentsBuilder.fromPath("/addresses");
     }
 }

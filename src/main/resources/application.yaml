@@ -19,6 +19,11 @@ os-places:
     # tiers (STE/DEV/NFT) leave this false, since they have no OS Places key at all.
     key-required: ${OS_PLACES_KEY_REQUIRED:false}
 
+address-lookup:
+  cache:
+    ttl-minutes: ${ADDRESS_LOOKUP_CACHE_TTL_MINUTES:10}
+    maximum-size: ${ADDRESS_LOOKUP_CACHE_MAX_SIZE:10000}
+
 azure:
   application-insights:
     instrumentation-key: ${rpe.AppInsightsInstrumentationKey:00000000-0000-0000-0000-000000000000}
