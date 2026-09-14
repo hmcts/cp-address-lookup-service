@@ -94,7 +94,7 @@ dependencies {
 
   // Address Lookup API contract (generated interfaces/models) - published from
   // api-cp-crime-address-lookup; this service implements AddressSearchApi.
-  apiSpec 'uk.gov.hmcts.cp:api-cp-crime-address-lookup:0.0.2'
+  apiSpec 'uk.gov.hmcts.cp:api-cp-crime-address-lookup:0.0.3'
   // swagger-annotations is compileOnly in the contract jar (not published transitively), but its
   // generated interfaces reference these annotation classes - needed here to compile against them.
   compileOnly 'io.swagger.core.v3:swagger-annotations:2.2.55'

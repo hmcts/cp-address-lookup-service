@@ -39,7 +39,7 @@ class AddressMatchControllerTest {
     @Test
     void returns_200_with_at_most_one_candidate_and_its_score() throws Exception {
         final AddressCandidate candidate = new AddressCandidate("10", "SW1A 1AA", "10033544886")
-                .address2("Downing Street")
+                .line2("Downing Street")
                 .match(new BigDecimal("0.95"));
         when(addressSearchService.findMatch("10 Downing Street", new BigDecimal("0.7")))
                 .thenReturn(new AddressSearchResponse(List.of(candidate)));
@@ -49,7 +49,7 @@ class AddressMatchControllerTest {
                         .param("minMatch", "0.7"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MEDIA_TYPE))
-                .andExpect(jsonPath("$.results[0].address1").value("10"))
+                .andExpect(jsonPath("$.results[0].line1").value("10"))
                 .andExpect(jsonPath("$.results[0].match").value(0.95));
     }
 

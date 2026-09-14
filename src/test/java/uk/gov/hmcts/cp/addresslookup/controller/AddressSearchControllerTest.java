@@ -39,15 +39,15 @@ class AddressSearchControllerTest {
     @Test
     void returns_200_with_candidates() throws Exception {
         final AddressCandidate candidate = new AddressCandidate("10", "SW1A 1AA", "10033544886")
-                .address2("Downing Street");
+                .line2("Downing Street");
         when(addressSearchService.searchByPostcode("SW1A 1AA", false))
                 .thenReturn(new AddressSearchResponse(List.of(candidate)));
 
         mockMvc.perform(get("/addresses/postcode").param("postcode", "SW1A 1AA"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MEDIA_TYPE))
-                .andExpect(jsonPath("$.results[0].address1").value("10"))
-                .andExpect(jsonPath("$.results[0].address2").value("Downing Street"));
+                .andExpect(jsonPath("$.results[0].line1").value("10"))
+                .andExpect(jsonPath("$.results[0].line2").value("Downing Street"));
     }
 
     @Test
@@ -103,15 +103,15 @@ class AddressSearchControllerTest {
     @Test
     void address_search_returns_200_with_candidates() throws Exception {
         final AddressCandidate candidate = new AddressCandidate("10", "SW1A 1AA", "10033544886")
-                .address2("Downing Street");
+                .line2("Downing Street");
         when(addressSearchService.searchByAddress("10 Downing Street", false))
                 .thenReturn(new AddressSearchResponse(List.of(candidate)));
 
         mockMvc.perform(get("/addresses").param("address", "10 Downing Street"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(ADDRESS_MEDIA_TYPE))
-                .andExpect(jsonPath("$.results[0].address1").value("10"))
-                .andExpect(jsonPath("$.results[0].address2").value("Downing Street"));
+                .andExpect(jsonPath("$.results[0].line1").value("10"))
+                .andExpect(jsonPath("$.results[0].line2").value("Downing Street"));
     }
 
     @Test

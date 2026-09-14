@@ -45,7 +45,7 @@ class AddressSearchServiceImplTest {
         final AddressSearchResponse response = service.searchByPostcode("SW1A 1AA", false);
 
         assertThat(response.getResults()).hasSize(1);
-        assertThat(response.getResults().get(0).getAddress1()).isEqualTo("10 Downing Street");
+        assertThat(response.getResults().get(0).getLine1()).isEqualTo("10 Downing Street");
         assertThat(response.getResults().get(0).getDpa()).isNull();
     }
 
@@ -79,7 +79,7 @@ class AddressSearchServiceImplTest {
         final AddressSearchResponse response = service.searchByAddress("10 Downing Street", false);
 
         assertThat(response.getResults()).hasSize(1);
-        assertThat(response.getResults().get(0).getAddress1()).isEqualTo("10 Downing Street");
+        assertThat(response.getResults().get(0).getLine1()).isEqualTo("10 Downing Street");
     }
 
     @Test
