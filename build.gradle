@@ -108,7 +108,9 @@ dependencies {
   // in-process dispatch simulation - TestRestTemplate moved to this module in Spring Boot 4.
   integrationTestImplementation 'org.springframework.boot:spring-boot-resttestclient'
 
-  // SB-05: in-process response cache. No explicit version - managed by the Spring Boot BOM.
+  // SB-05: in-process response cache - Spring's caching abstraction (@Cacheable) backed by
+  // Caffeine. No explicit versions - both managed by the Spring Boot BOM.
+  implementation 'org.springframework.boot:spring-boot-starter-cache'
   implementation 'com.github.ben-manes.caffeine:caffeine'
 
   // --- Observability / Actuator / OTEL / Prometheus ---

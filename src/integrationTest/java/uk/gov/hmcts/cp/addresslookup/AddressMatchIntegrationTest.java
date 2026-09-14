@@ -23,13 +23,13 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.cache.CacheManager;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import com.github.benmanes.caffeine.cache.Cache;
-
 import jakarta.annotation.Resource;
+import uk.gov.hmcts.cp.addresslookup.config.CacheConfig;
 import uk.gov.hmcts.cp.openapi.model.al.AddressSearchResponse;
 import uk.gov.hmcts.cp.openapi.model.al.DegradedResponse;
 import uk.gov.hmcts.cp.openapi.model.al.ErrorResponse;
@@ -64,11 +64,11 @@ class AddressMatchIntegrationTest {
     private TestRestTemplate restTemplate;
 
     @Resource
-    private Cache<String, AddressSearchResponse> addressLookupCache;
+    private CacheManager cacheManager;
 
     @BeforeEach
     void clearCache() {
-        addressLookupCache.invalidateAll();
+        cacheManager.getCache(CacheConfig.ADDRESS_LOOKUP_CACHE).clear();
     }
 
     @Test

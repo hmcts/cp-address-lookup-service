@@ -22,13 +22,13 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.cache.CacheManager;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import com.github.benmanes.caffeine.cache.Cache;
-
 import jakarta.annotation.Resource;
+import uk.gov.hmcts.cp.addresslookup.config.CacheConfig;
 import uk.gov.hmcts.cp.openapi.model.al.AddressSearchResponse;
 import uk.gov.hmcts.cp.openapi.model.al.DegradedResponse;
 import uk.gov.hmcts.cp.openapi.model.al.ErrorResponse;
@@ -69,15 +69,15 @@ class AddressSearchPostcodeIntegrationTest {
     private TestRestTemplate restTemplate;
 
     @Resource
-    private Cache<String, AddressSearchResponse> addressLookupCache;
+    private CacheManager cacheManager;
 
     @BeforeEach
     void clearCache() {
-        // The Spring context (and therefore the cache bean) is shared across every test method in
+        // The Spring context (and therefore the cache) is shared across every test method in
         // this class; without this, whichever test happens to run first for a given postcode
         // silently pre-warms the cache for every other test reusing it, breaking their WireMock
         // call-count assertions in an order-dependent way.
-        addressLookupCache.invalidateAll();
+        cacheManager.getCache(CacheConfig.ADDRESS_LOOKUP_CACHE).clear();
     }
 
     @Test
