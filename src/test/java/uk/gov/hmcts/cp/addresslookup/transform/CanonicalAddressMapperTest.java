@@ -28,11 +28,11 @@ class CanonicalAddressMapperTest {
 
         final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
 
-        assertThat(candidate.getAddress1()).isEqualTo("10 Downing Street");
-        assertThat(candidate.getAddress2()).isNull();
-        assertThat(candidate.getAddress3()).isNull();
-        assertThat(candidate.getAddress4()).isEqualTo("LONDON");
-        assertThat(candidate.getAddress5()).isNull();
+        assertThat(candidate.getLine1()).isEqualTo("10 Downing Street");
+        assertThat(candidate.getLine2()).isNull();
+        assertThat(candidate.getLine3()).isNull();
+        assertThat(candidate.getLine4()).isEqualTo("LONDON");
+        assertThat(candidate.getLine5()).isNull();
         assertThat(candidate.getPostcode()).isEqualTo("SW1A 1AA");
         assertThat(candidate.getUprn()).isEqualTo("10033544886");
         assertThat(candidate.getDpa()).isNull();
@@ -49,9 +49,9 @@ class CanonicalAddressMapperTest {
 
         final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
 
-        assertThat(candidate.getAddress1()).isEqualTo("Flat 2");
-        assertThat(candidate.getAddress2()).isEqualTo("10 Downing Street");
-        assertThat(candidate.getAddress3()).isNull();
+        assertThat(candidate.getLine1()).isEqualTo("Flat 2");
+        assertThat(candidate.getLine2()).isEqualTo("10 Downing Street");
+        assertThat(candidate.getLine3()).isNull();
     }
 
     @Test
@@ -65,9 +65,9 @@ class CanonicalAddressMapperTest {
 
         final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
 
-        assertThat(candidate.getAddress1()).isEqualTo("Downing House");
-        assertThat(candidate.getAddress2()).isEqualTo("10 Downing Street");
-        assertThat(candidate.getAddress3()).isNull();
+        assertThat(candidate.getLine1()).isEqualTo("Downing House");
+        assertThat(candidate.getLine2()).isEqualTo("10 Downing Street");
+        assertThat(candidate.getLine3()).isNull();
     }
 
     @Test
@@ -94,11 +94,11 @@ class CanonicalAddressMapperTest {
 
         final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
 
-        assertThat(candidate.getAddress1()).hasSize(35);
+        assertThat(candidate.getLine1()).hasSize(35);
     }
 
     @Test
-    void uses_organisation_name_as_address1_for_a_named_premise_with_no_street_fields() {
+    void uses_organisation_name_as_line1_for_a_named_premise_with_no_street_fields() {
         // Real OS Places record for Buckingham Palace: no BUILDING_NUMBER/NAME or
         // THOROUGHFARE_NAME at all, only ORGANISATION_NAME, POST_TOWN and
         // LOCAL_CUSTODIAN_CODE_DESCRIPTION.
@@ -111,11 +111,11 @@ class CanonicalAddressMapperTest {
 
         final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
 
-        assertThat(candidate.getAddress1()).isEqualTo("BUCKINGHAM PALACE");
-        assertThat(candidate.getAddress2()).isNull();
-        assertThat(candidate.getAddress3()).isNull();
-        assertThat(candidate.getAddress4()).isEqualTo("LONDON");
-        assertThat(candidate.getAddress5()).isEqualTo("CITY OF WESTMINSTER");
+        assertThat(candidate.getLine1()).isEqualTo("BUCKINGHAM PALACE");
+        assertThat(candidate.getLine2()).isNull();
+        assertThat(candidate.getLine3()).isNull();
+        assertThat(candidate.getLine4()).isEqualTo("LONDON");
+        assertThat(candidate.getLine5()).isEqualTo("CITY OF WESTMINSTER");
     }
 
     @Test
@@ -129,13 +129,13 @@ class CanonicalAddressMapperTest {
 
         final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
 
-        assertThat(candidate.getAddress1()).isEqualTo("HMCTS");
-        assertThat(candidate.getAddress2()).isEqualTo("10 Downing Street");
-        assertThat(candidate.getAddress3()).isNull();
+        assertThat(candidate.getLine1()).isEqualTo("HMCTS");
+        assertThat(candidate.getLine2()).isEqualTo("10 Downing Street");
+        assertThat(candidate.getLine3()).isNull();
     }
 
     @Test
-    void address4_and_address5_are_absent_when_post_town_and_local_custodian_code_description_are_absent() {
+    void line4_and_line5_are_absent_when_post_town_and_local_custodian_code_description_are_absent() {
         final Map<String, Object> dpa = new HashMap<>();
         dpa.put("UPRN", "10033544886");
         dpa.put("BUILDING_NUMBER", "10");
@@ -144,12 +144,12 @@ class CanonicalAddressMapperTest {
 
         final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
 
-        assertThat(candidate.getAddress4()).isNull();
-        assertThat(candidate.getAddress5()).isNull();
+        assertThat(candidate.getLine4()).isNull();
+        assertThat(candidate.getLine5()).isNull();
     }
 
     @Test
-    void address4_and_address5_are_truncated_to_35_characters() {
+    void line4_and_line5_are_truncated_to_35_characters() {
         final Map<String, Object> dpa = new HashMap<>();
         dpa.put("UPRN", "10033544886");
         dpa.put("BUILDING_NUMBER", "10");
@@ -160,15 +160,15 @@ class CanonicalAddressMapperTest {
 
         final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
 
-        assertThat(candidate.getAddress4()).hasSize(35);
-        assertThat(candidate.getAddress5()).hasSize(35);
+        assertThat(candidate.getLine4()).hasSize(35);
+        assertThat(candidate.getLine5()).hasSize(35);
     }
 
     @Test
-    void a_fourth_dynamic_candidate_is_dropped_not_shifted_into_address4() {
+    void a_fourth_dynamic_candidate_is_dropped_not_shifted_into_line4() {
         // organisation, sub-building, building name and number+street are all present here - four
-        // dynamic candidates for only three slots (address1-3); the fourth (number+street) is
-        // simply dropped, never spills into address4 (which is reserved for POST_TOWN).
+        // dynamic candidates for only three slots (line1-3); the fourth (number+street) is
+        // simply dropped, never spills into line4 (which is reserved for POST_TOWN).
         final Map<String, Object> dpa = new HashMap<>();
         dpa.put("UPRN", "10033544886");
         dpa.put("ORGANISATION_NAME", "HMCTS");
@@ -181,11 +181,11 @@ class CanonicalAddressMapperTest {
 
         final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
 
-        assertThat(candidate.getAddress1()).isEqualTo("HMCTS");
-        assertThat(candidate.getAddress2()).isEqualTo("Flat 2");
-        assertThat(candidate.getAddress3()).isEqualTo("Downing House");
-        assertThat(candidate.getAddress4()).isEqualTo("LONDON");
-        assertThat(candidate.getAddress5()).isNull();
+        assertThat(candidate.getLine1()).isEqualTo("HMCTS");
+        assertThat(candidate.getLine2()).isEqualTo("Flat 2");
+        assertThat(candidate.getLine3()).isEqualTo("Downing House");
+        assertThat(candidate.getLine4()).isEqualTo("LONDON");
+        assertThat(candidate.getLine5()).isNull();
     }
 
     @Test

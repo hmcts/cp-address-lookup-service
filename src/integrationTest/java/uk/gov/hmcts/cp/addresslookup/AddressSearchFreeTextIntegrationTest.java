@@ -9,6 +9,7 @@ import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import java.net.URI;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.boot.resttestclient.TestRestTemplate;
@@ -21,11 +22,13 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.cache.CacheManager;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import jakarta.annotation.Resource;
+import uk.gov.hmcts.cp.addresslookup.config.CacheConfig;
 import uk.gov.hmcts.cp.openapi.model.al.AddressSearchResponse;
 import uk.gov.hmcts.cp.openapi.model.al.DegradedResponse;
 import uk.gov.hmcts.cp.openapi.model.al.ErrorResponse;
@@ -64,15 +67,12 @@ class AddressSearchFreeTextIntegrationTest {
     @Resource
     private TestRestTemplate restTemplate;
 
-    private <T> ResponseEntity<T> addressSearch(final UriComponentsBuilder query, final Class<T> responseType) {
-        final URI uri = query.build().encode().toUri();
-        final HttpHeaders headers = new HttpHeaders();
-        headers.setAccept(List.of(MEDIA_TYPE));
-        return restTemplate.exchange(uri, HttpMethod.GET, new HttpEntity<>(headers), responseType);
-    }
+    @Resource
+    private CacheManager cacheManager;
 
-    private static UriComponentsBuilder addresses() {
-        return UriComponentsBuilder.fromPath("/addresses");
+    @BeforeEach
+    void clearCache() {
+        cacheManager.getCache(CacheConfig.ADDRESS_LOOKUP_CACHE).clear();
     }
 
     @Test
@@ -83,9 +83,9 @@ class AddressSearchFreeTextIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getHeaders().getContentType()).isEqualTo(MEDIA_TYPE);
         assertThat(response.getBody().getResults()).hasSize(1);
-        assertThat(response.getBody().getResults().get(0).getAddress1()).isEqualTo("10 Downing Street");
-        assertThat(response.getBody().getResults().get(0).getAddress2()).isNull();
-        assertThat(response.getBody().getResults().get(0).getAddress4()).isEqualTo("LONDON");
+        assertThat(response.getBody().getResults().get(0).getLine1()).isEqualTo("10 Downing Street");
+        assertThat(response.getBody().getResults().get(0).getLine2()).isNull();
+        assertThat(response.getBody().getResults().get(0).getLine4()).isEqualTo("LONDON");
         assertThat(response.getBody().getResults().get(0).getPostcode()).isEqualTo("SW1A 1AA");
         assertThat(response.getBody().getResults().get(0).getUprn()).isEqualTo("10033544886");
 
@@ -127,6 +127,18 @@ class AddressSearchFreeTextIntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getHeaders().get("key")).isNull();
+    }
+
+    @Test
+    void repeating_the_same_search_within_the_cache_ttl_only_calls_os_places_once() {
+        final UriComponentsBuilder query = addresses().queryParam("address", "cache proof street");
+
+        addressSearch(query, AddressSearchResponse.class);
+        final ResponseEntity<AddressSearchResponse> second = addressSearch(query, AddressSearchResponse.class);
+
+        assertThat(second.getStatusCode()).isEqualTo(HttpStatus.OK);
+        osPlaces.verify(1, WireMock.getRequestedFor(WireMock.urlPathEqualTo(OS_PLACES_PATH))
+                .withQueryParam("query", WireMock.equalTo("cache proof street")));
     }
 
     @Test
@@ -194,5 +206,16 @@ class AddressSearchFreeTextIntegrationTest {
 
         osPlaces.verify(0, WireMock.getRequestedFor(WireMock.urlPathEqualTo(OS_PLACES_PATH))
                 .withQueryParam("bbox", WireMock.equalTo("1,2,3,4")));
+    }
+
+    private <T> ResponseEntity<T> addressSearch(final UriComponentsBuilder query, final Class<T> responseType) {
+        final URI uri = query.build().encode().toUri();
+        final HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(List.of(MEDIA_TYPE));
+        return restTemplate.exchange(uri, HttpMethod.GET, new HttpEntity<>(headers), responseType);
+    }
+
+    private static UriComponentsBuilder addresses() {
+        return UriComponentsBuilder.fromPath("/addresses");
     }
 }

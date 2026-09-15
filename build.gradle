@@ -94,7 +94,7 @@ dependencies {
 
   // Address Lookup API contract (generated interfaces/models) - published from
   // api-cp-crime-address-lookup; this service implements AddressSearchApi.
-  apiSpec 'uk.gov.hmcts.cp:api-cp-crime-address-lookup:0.0.2'
+  apiSpec 'uk.gov.hmcts.cp:api-cp-crime-address-lookup:0.0.3'
   // swagger-annotations is compileOnly in the contract jar (not published transitively), but its
   // generated interfaces reference these annotation classes - needed here to compile against them.
   compileOnly 'io.swagger.core.v3:swagger-annotations:2.2.55'
@@ -107,6 +107,11 @@ dependencies {
   // Real HTTP round-trip against a randomly-bound embedded server, rather than MockMvc's
   // in-process dispatch simulation - TestRestTemplate moved to this module in Spring Boot 4.
   integrationTestImplementation 'org.springframework.boot:spring-boot-resttestclient'
+
+  // SB-05: in-process response cache - Spring's caching abstraction (@Cacheable) backed by
+  // Caffeine. No explicit versions - both managed by the Spring Boot BOM.
+  implementation 'org.springframework.boot:spring-boot-starter-cache'
+  implementation 'com.github.ben-manes.caffeine:caffeine'
 
   // --- Observability / Actuator / OTEL / Prometheus ---
   implementation 'org.springframework.boot:spring-boot-starter-actuator'

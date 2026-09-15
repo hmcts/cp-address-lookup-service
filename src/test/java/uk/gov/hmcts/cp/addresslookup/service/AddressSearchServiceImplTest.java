@@ -17,6 +17,11 @@ import org.junit.jupiter.api.Test;
 import uk.gov.hmcts.cp.addresslookup.client.OsPlacesClient;
 import uk.gov.hmcts.cp.openapi.model.al.AddressSearchResponse;
 
+/**
+ * Pure business-logic unit tests - no Spring context, so {@code @Cacheable} has no effect here
+ * (the annotation only applies via Spring's AOP proxy). Cache behaviour itself is covered by
+ * {@link AddressSearchCachingTest}, which runs with a real Spring context so the proxy is active.
+ */
 class AddressSearchServiceImplTest {
 
     private OsPlacesClient osPlacesClient;
@@ -40,7 +45,7 @@ class AddressSearchServiceImplTest {
         final AddressSearchResponse response = service.searchByPostcode("SW1A 1AA", false);
 
         assertThat(response.getResults()).hasSize(1);
-        assertThat(response.getResults().get(0).getAddress1()).isEqualTo("10 Downing Street");
+        assertThat(response.getResults().get(0).getLine1()).isEqualTo("10 Downing Street");
         assertThat(response.getResults().get(0).getDpa()).isNull();
     }
 
@@ -74,7 +79,7 @@ class AddressSearchServiceImplTest {
         final AddressSearchResponse response = service.searchByAddress("10 Downing Street", false);
 
         assertThat(response.getResults()).hasSize(1);
-        assertThat(response.getResults().get(0).getAddress1()).isEqualTo("10 Downing Street");
+        assertThat(response.getResults().get(0).getLine1()).isEqualTo("10 Downing Street");
     }
 
     @Test
