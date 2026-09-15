@@ -14,9 +14,9 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 /**
  * SB-05: a single named Spring cache ("addressLookup") shared by all three address-lookup
  * operations (postcode search, free-text search, match), backed by Caffeine. Composite,
- * operation-tagged key logic lives in {@link AddressLookupKeyGenerator} rather than SpEL, since
- * the keys need real normalisation logic (postcode case/whitespace, {@code minMatch} scale) that
- * SpEL key expressions can't express cleanly.
+ * operation-tagged key normalisation logic (postcode case/whitespace, {@code minMatch} scale)
+ * lives in {@link AddressLookupCacheKeys}'s static helpers, called from each cached method's
+ * {@code @Cacheable(key = ...)} SpEL expression.
  */
 @Configuration
 @EnableCaching

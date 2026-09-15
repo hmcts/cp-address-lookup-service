@@ -15,35 +15,40 @@ import uk.gov.hmcts.cp.openapi.model.al.AddressCandidate;
 import uk.gov.hmcts.cp.openapi.model.al.AddressSearchResponse;
 
 /**
- * SB-05: every operation is cache-checked before calling OS Places, via {@code @Cacheable}
- * (key logic in {@link uk.gov.hmcts.cp.addresslookup.config.AddressLookupKeyGenerator}).
- * {@code sync = true} preserves stampede protection (concurrent misses for the same key collapse
- * into one OS call); a thrown {@code DegradedModeException} is never cached, since Spring only
- * stores the result after the method returns normally.
+ * SB-05: every operation is cache-checked before calling OS Places, via {@code @Cacheable}.
+ * Composite keys are declared inline via the {@code key} SpEL attribute, calling the static
+ * helpers on {@link uk.gov.hmcts.cp.addresslookup.config.AddressLookupCacheKeys} - declarative,
+ * annotation-based key config, rather than a separate {@code KeyGenerator} bean. {@code sync =
+ * true} preserves stampede protection (concurrent misses for the same key collapse into one OS
+ * call); a thrown {@code DegradedModeException} is never cached, since Spring only stores the
+ * result after the method returns normally.
  */
 @Service
 @RequiredArgsConstructor
 public class AddressSearchServiceImpl implements AddressSearchService {
 
     private static final int MAX_MATCH_RESULTS = 1;
-    private static final String KEY_GENERATOR = "addressLookupKeyGenerator";
+    private static final String CACHE_KEYS = "uk.gov.hmcts.cp.addresslookup.config.AddressLookupCacheKeys";
 
     private final OsPlacesClient osPlacesClient;
 
     @Override
-    @Cacheable(cacheNames = CacheConfig.ADDRESS_LOOKUP_CACHE, keyGenerator = KEY_GENERATOR, sync = true)
+    @Cacheable(cacheNames = CacheConfig.ADDRESS_LOOKUP_CACHE, sync = true,
+            key = "T(" + CACHE_KEYS + ").postcodeKey(#postcode, #includeDpa)")
     public AddressSearchResponse searchByPostcode(final String postcode, final boolean includeDpa) {
         return toResponse(osPlacesClient.searchByPostcode(postcode.trim()), includeDpa);
     }
 
     @Override
-    @Cacheable(cacheNames = CacheConfig.ADDRESS_LOOKUP_CACHE, keyGenerator = KEY_GENERATOR, sync = true)
+    @Cacheable(cacheNames = CacheConfig.ADDRESS_LOOKUP_CACHE, sync = true,
+            key = "T(" + CACHE_KEYS + ").findKey(#address, #includeDpa)")
     public AddressSearchResponse searchByAddress(final String address, final boolean includeDpa) {
         return toResponse(osPlacesClient.searchByAddress(address), includeDpa);
     }
 
     @Override
-    @Cacheable(cacheNames = CacheConfig.ADDRESS_LOOKUP_CACHE, keyGenerator = KEY_GENERATOR, sync = true)
+    @Cacheable(cacheNames = CacheConfig.ADDRESS_LOOKUP_CACHE, sync = true,
+            key = "T(" + CACHE_KEYS + ").matchKey(#address, #minMatch)")
     public AddressSearchResponse findMatch(final String address, final BigDecimal minMatch) {
         final List<AddressCandidate> candidates = osPlacesClient.findBestMatch(address, minMatch).stream()
                 .map(dpa -> CanonicalAddressMapper.toCandidate(dpa, false))
