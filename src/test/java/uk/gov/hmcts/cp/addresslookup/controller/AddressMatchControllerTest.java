@@ -120,6 +120,17 @@ class AddressMatchControllerTest {
     }
 
     @Test
+    void allows_the_underscore_cache_buster_query_parameter() throws Exception {
+        when(addressSearchService.findMatch("10 Downing Street", null))
+                .thenReturn(new AddressSearchResponse(List.of()));
+
+        mockMvc.perform(get("/addresses/find")
+                        .param("address", "10 Downing Street")
+                        .param("_", "1234567890"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void returns_503_degraded_when_os_places_is_unavailable() throws Exception {
         when(addressSearchService.findMatch(anyString(), any()))
                 .thenThrow(new DegradedModeException(DegradedReason.UPSTREAM_TIMEOUT, null, "OS Places timed out"));

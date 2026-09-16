@@ -4,7 +4,9 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -90,6 +92,29 @@ class AddressSearchControllerTest {
     }
 
     @Test
+    void allows_the_underscore_cache_buster_query_parameter() throws Exception {
+        // e.g. jQuery's cache: false, which appends _=<random value> to every GET - a well-known
+        // HTTP client convention, not a caller-supplied filter, so it's never rejected.
+        when(addressSearchService.searchByPostcode("SW1A 1AA", false))
+                .thenReturn(new AddressSearchResponse(List.of()));
+
+        mockMvc.perform(get("/addresses/postcode")
+                        .param("postcode", "SW1A 1AA")
+                        .param("_", "1234567890"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void any_origin_is_allowed_by_default() throws Exception {
+        mockMvc.perform(options("/addresses/postcode")
+                        .header("Origin", "http://localhost:4200")
+                        .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:4200"))
+                .andExpect(header().string("Access-Control-Allow-Credentials", "true"));
+    }
+
+    @Test
     void returns_503_degraded_when_os_places_is_unavailable() throws Exception {
         when(addressSearchService.searchByPostcode(anyString(), anyBoolean()))
                 .thenThrow(new DegradedModeException(DegradedReason.UPSTREAM_TIMEOUT, null, "OS Places timed out"));
@@ -151,6 +176,17 @@ class AddressSearchControllerTest {
                         .param("bbox", "1,2,3,4"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Unrecognised query parameter 'bbox'"));
+    }
+
+    @Test
+    void address_search_allows_the_underscore_cache_buster_query_parameter() throws Exception {
+        when(addressSearchService.searchByAddress("10 Downing Street", false))
+                .thenReturn(new AddressSearchResponse(List.of()));
+
+        mockMvc.perform(get("/addresses")
+                        .param("address", "10 Downing Street")
+                        .param("_", "1234567890"))
+                .andExpect(status().isOk());
     }
 
     @Test
