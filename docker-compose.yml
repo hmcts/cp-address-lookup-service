@@ -8,3 +8,8 @@ services:
     environment:
       - OS_PLACES_API_KEY=${OS_PLACES_API_KEY:?Set OS_PLACES_API_KEY (env var or .env file) before running}
       - OS_PLACES_BASE_URL=${OS_PLACES_BASE_URL:-https://api.os.uk}
+      # SB-07: forwarded through so `SPRING_PROFILES_ACTIVE=stub OS_PLACES_STUB_FIXTURE_SET=nft
+      # docker compose up` actually reaches the container - docker compose does not pass through
+      # arbitrary host env vars on its own, only ones explicitly listed here.
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-}
+      - OS_PLACES_STUB_FIXTURE_SET=${OS_PLACES_STUB_FIXTURE_SET:-}

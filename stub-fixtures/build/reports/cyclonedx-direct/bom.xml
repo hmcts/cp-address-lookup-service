@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bom serialNumber="urn:uuid:04d5b35f-c05e-4ad6-8a84-4f184dd550d3" version="1" xmlns="http://cyclonedx.org/schema/bom/1.6">
+  <metadata>
+    <timestamp>2026-09-16T13:07:05Z</timestamp>
+    <tools>
+      <components>
+        <component type="application">
+          <author>CycloneDX</author>
+          <name>cyclonedx-gradle-plugin</name>
+          <version>3.4.1</version>
+        </component>
+      </components>
+    </tools>
+    <component type="library" bom-ref="pkg:maven/cp-address-lookup-service/stub-fixtures@unspecified?project_path=%3Astub-fixtures">
+      <group>cp-address-lookup-service</group>
+      <name>stub-fixtures</name>
+      <version>unspecified</version>
+      <purl>pkg:maven/cp-address-lookup-service/stub-fixtures@unspecified?project_path=%3Astub-fixtures</purl>
+      <modified>false</modified>
+      <externalReferences>
+        <reference type="vcs">
+          <url>ssh://git@github.com:hmcts/cp-address-lookup-service.git</url>
+        </reference>
+      </externalReferences>
+    </component>
+  </metadata>
+  <dependencies>
+    <dependency ref="pkg:maven/cp-address-lookup-service/stub-fixtures@unspecified?project_path=%3Astub-fixtures"/>
+  </dependencies>
+</bom>

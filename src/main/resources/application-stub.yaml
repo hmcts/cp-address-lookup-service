@@ -1,0 +1,9 @@
+# SB-07: activated only when SPRING_PROFILES_ACTIVE=stub is set. The actual routing to the
+# in-process WireMock server is done by StubOsPlacesConfig's own @Primary RestClient bean, not by
+# os-places.client.base-url here - that property binds from OS_PLACES_BASE_URL, an environment
+# variable, which every real deployment sets and which Spring resolves ABOVE this file's values.
+os-places:
+  client:
+    key-required: false
+  stub:
+    fixture-set: ${OS_PLACES_STUB_FIXTURE_SET:?Set OS_PLACES_STUB_FIXTURE_SET to ste/dev/nft when the stub profile is active}

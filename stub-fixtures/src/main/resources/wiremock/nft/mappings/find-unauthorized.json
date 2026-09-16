@@ -1,0 +1,13 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/search/places/v1/find",
+    "queryParameters": {
+      "query": { "equalTo": "unauthorized street" }
+    }
+  },
+  "response": {
+    "status": 401,
+    "body": "{}"
+  }
+}

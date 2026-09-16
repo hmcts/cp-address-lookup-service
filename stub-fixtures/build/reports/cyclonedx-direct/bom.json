@@ -1,0 +1,40 @@
+{
+  "bomFormat" : "CycloneDX",
+  "specVersion" : "1.6",
+  "serialNumber" : "urn:uuid:04d5b35f-c05e-4ad6-8a84-4f184dd550d3",
+  "version" : 1,
+  "metadata" : {
+    "timestamp" : "2026-09-16T13:07:05Z",
+    "tools" : {
+      "components" : [
+        {
+          "type" : "application",
+          "author" : "CycloneDX",
+          "name" : "cyclonedx-gradle-plugin",
+          "version" : "3.4.1"
+        }
+      ]
+    },
+    "component" : {
+      "type" : "library",
+      "bom-ref" : "pkg:maven/cp-address-lookup-service/stub-fixtures@unspecified?project_path=%3Astub-fixtures",
+      "group" : "cp-address-lookup-service",
+      "name" : "stub-fixtures",
+      "version" : "unspecified",
+      "purl" : "pkg:maven/cp-address-lookup-service/stub-fixtures@unspecified?project_path=%3Astub-fixtures",
+      "modified" : false,
+      "externalReferences" : [
+        {
+          "type" : "vcs",
+          "url" : "ssh://git@github.com:hmcts/cp-address-lookup-service.git"
+        }
+      ]
+    }
+  },
+  "dependencies" : [
+    {
+      "ref" : "pkg:maven/cp-address-lookup-service/stub-fixtures@unspecified?project_path=%3Astub-fixtures",
+      "dependsOn" : [ ]
+    }
+  ]
+}
