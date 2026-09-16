@@ -20,14 +20,10 @@ public class CorsConfig implements WebMvcConfigurer {
     public void addCorsMappings(final CorsRegistry registry) {
         registry.addMapping("/**")
                 .allowedOriginPatterns(allowedOrigins.toArray(String[]::new))
-                .allowedMethods(
-                        HttpMethod.GET.name(),
-                        HttpMethod.POST.name(),
-                        HttpMethod.PUT.name(),
-                        HttpMethod.PATCH.name(),
-                        HttpMethod.DELETE.name(),
-                        HttpMethod.OPTIONS.name()
-                )
+                // GET-only - this service has no
+                // POST/PUT/PATCH/DELETE mappings, so allowing them cross-origin wouldn't unlock
+                // anything (an unmapped method still 404/405s).
+                .allowedMethods(HttpMethod.GET.name())
                 .allowedHeaders("*")
                 .exposedHeaders("Location", "X-Total-Count")
                 .allowCredentials(true)
