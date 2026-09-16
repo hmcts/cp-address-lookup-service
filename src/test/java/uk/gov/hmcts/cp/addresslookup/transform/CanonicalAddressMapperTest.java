@@ -86,7 +86,7 @@ class CanonicalAddressMapperTest {
     }
 
     @Test
-    void truncates_lines_longer_than_35_characters() {
+    void does_not_truncate_long_lines() {
         final Map<String, Object> dpa = new HashMap<>();
         dpa.put("UPRN", "10033544886");
         dpa.put("BUILDING_NAME", "A Very Long Building Name That Exceeds Thirty Five Characters");
@@ -94,7 +94,7 @@ class CanonicalAddressMapperTest {
 
         final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
 
-        assertThat(candidate.getLine1()).hasSize(35);
+        assertThat(candidate.getLine1()).isEqualTo("A Very Long Building Name That Exceeds Thirty Five Characters");
     }
 
     @Test
@@ -149,7 +149,7 @@ class CanonicalAddressMapperTest {
     }
 
     @Test
-    void line4_and_line5_are_truncated_to_35_characters() {
+    void line4_and_line5_are_not_truncated() {
         final Map<String, Object> dpa = new HashMap<>();
         dpa.put("UPRN", "10033544886");
         dpa.put("BUILDING_NUMBER", "10");
@@ -160,8 +160,8 @@ class CanonicalAddressMapperTest {
 
         final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
 
-        assertThat(candidate.getLine4()).hasSize(35);
-        assertThat(candidate.getLine5()).hasSize(35);
+        assertThat(candidate.getLine4()).isEqualTo("A Very Long Post Town Name That Exceeds Thirty Five Characters");
+        assertThat(candidate.getLine5()).isEqualTo("A Very Long Custodian Description That Exceeds Thirty Five Characters");
     }
 
     @Test

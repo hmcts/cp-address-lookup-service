@@ -25,7 +25,6 @@ import uk.gov.hmcts.cp.openapi.model.al.DegradedReason;
  */
 public final class CanonicalAddressMapper {
 
-    private static final int MAX_LINE_LENGTH = 35;
     private static final int MAX_DYNAMIC_LINES = 3;
     private static final int LINE2_INDEX = 1;
     private static final int LINE3_INDEX = 2;
@@ -57,23 +56,23 @@ public final class CanonicalAddressMapper {
         }
 
         final AddressCandidate candidate = new AddressCandidate()
-                .line1(truncate(lines.get(0)))
+                .line1(lines.get(0))
                 .postcode(postcode)
                 .uprn(uprn);
         if (lines.size() > LINE2_INDEX) {
-            candidate.line2(truncate(lines.get(LINE2_INDEX)));
+            candidate.line2(lines.get(LINE2_INDEX));
         }
         if (lines.size() > LINE3_INDEX) {
-            candidate.line3(truncate(lines.get(LINE3_INDEX)));
+            candidate.line3(lines.get(LINE3_INDEX));
         }
 
         final String postTown = fieldValue(dpa, POST_TOWN);
         if (postTown != null) {
-            candidate.line4(truncate(postTown));
+            candidate.line4(postTown);
         }
         final String localCustodianCodeDescription = fieldValue(dpa, LOCAL_CUSTODIAN_CODE_DESCRIPTION);
         if (localCustodianCodeDescription != null) {
-            candidate.line5(truncate(localCustodianCodeDescription));
+            candidate.line5(localCustodianCodeDescription);
         }
 
         // The generated model's dpa field defaults to an empty (not null) HashMap, which would
@@ -131,9 +130,5 @@ public final class CanonicalAddressMapper {
         final Object value = dpa.get(field);
         final String text = value == null ? null : String.valueOf(value).trim();
         return text == null || text.isEmpty() ? null : text;
-    }
-
-    private static String truncate(final String value) {
-        return value.length() <= MAX_LINE_LENGTH ? value : value.substring(0, MAX_LINE_LENGTH);
     }
 }
