@@ -208,6 +208,25 @@ class AddressSearchFreeTextIntegrationTest {
                 .withQueryParam("bbox", WireMock.equalTo("1,2,3,4")));
     }
 
+    @Test
+    void returns_406_when_accept_header_is_the_postcode_operations_vendor_type_not_calling_os_places() {
+        // Reproduces calling GET /addresses (this operation, produces addresses+json) with the
+        // postcode operation's vendor Accept header - previously misreported as a 500.
+        final MediaType postcodeMediaType =
+                MediaType.parseMediaType("application/vnd.addresslookup-service.addresses-postcode+json");
+        final HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(List.of(postcodeMediaType));
+        final ResponseEntity<ErrorResponse> response = restTemplate.exchange(
+                addresses().queryParam("postcode", "SW1A 2AA").build().encode().toUri(),
+                HttpMethod.GET, new HttpEntity<>(headers), ErrorResponse.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_ACCEPTABLE);
+        assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
+        assertThat(response.getBody().getError()).isEqualTo("406");
+
+        osPlaces.verify(0, WireMock.getRequestedFor(WireMock.urlPathEqualTo(OS_PLACES_PATH)));
+    }
+
     private <T> ResponseEntity<T> addressSearch(final UriComponentsBuilder query, final Class<T> responseType) {
         final URI uri = query.build().encode().toUri();
         final HttpHeaders headers = new HttpHeaders();

@@ -15,6 +15,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -198,5 +199,15 @@ class AddressSearchControllerTest {
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.degraded").value(true))
                 .andExpect(jsonPath("$.reason").value("upstream-timeout"));
+    }
+
+    @Test
+    void address_search_returns_406_when_accept_header_is_another_operations_vendor_type() throws Exception {
+        // e.g. calling GET /addresses (produces addresses+json) with the postcode operation's
+        // vendor type - previously misreported as a 500 "Unexpected error".
+        mockMvc.perform(get("/addresses").param("postcode", "SW1A 2AA").header("Accept", MEDIA_TYPE))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.error").value("406"));
     }
 }
