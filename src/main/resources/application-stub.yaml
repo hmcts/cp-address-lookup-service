@@ -6,4 +6,4 @@ os-places:
   client:
     key-required: false
   stub:
-    fixture-set: ${OS_PLACES_STUB_FIXTURE_SET:?Set OS_PLACES_STUB_FIXTURE_SET to ste/dev/nft when the stub profile is active}
+    fixture-set: ${OS_PLACES_STUB_FIXTURE_SET:dev,nft}
