@@ -3,7 +3,8 @@
     "method": "GET",
     "urlPath": "/search/places/v1/find",
     "queryParameters": {
-      "query": { "equalTo": "server error street" }
+      "query": { "equalTo": "server error street" },
+      "maxresults": { "absent": true }
     }
   },
   "response": {

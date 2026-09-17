@@ -3,7 +3,8 @@
     "method": "GET",
     "urlPath": "/search/places/v1/find",
     "queryParameters": {
-      "query": { "equalTo": "rate limited street" }
+      "query": { "equalTo": "rate limited street" },
+      "maxresults": { "absent": true }
     }
   },
   "response": {

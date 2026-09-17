@@ -3,7 +3,8 @@
     "method": "GET",
     "urlPath": "/search/places/v1/find",
     "queryParameters": {
-      "query": { "equalTo": "10 Downing Street" }
+      "query": { "equalTo": "10 Downing Street" },
+      "maxresults": { "absent": true }
     }
   },
   "response": {

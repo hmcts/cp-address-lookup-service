@@ -3,7 +3,8 @@
     "method": "GET",
     "urlPath": "/search/places/v1/find",
     "queryParameters": {
-      "query": { "equalTo": "malformed data street" }
+      "query": { "equalTo": "malformed data street" },
+      "maxresults": { "absent": true }
     }
   },
   "response": {

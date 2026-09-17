@@ -3,7 +3,8 @@
     "method": "GET",
     "urlPath": "/search/places/v1/find",
     "queryParameters": {
-      "query": { "equalTo": "complete nonsense address" }
+      "query": { "equalTo": "complete nonsense address" },
+      "maxresults": { "absent": true }
     }
   },
   "response": {
