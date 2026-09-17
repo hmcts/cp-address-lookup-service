@@ -5,6 +5,11 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.EnumSet;
+import java.util.Set;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -82,11 +87,24 @@ public class StubOsPlacesConfig {
      * classpath (e.g. {@code bootRun}, or JUnit). Copying the fixture files out to a real temp
      * directory first - via Spring's own boot-loader-aware resource resolver, which *can* read
      * nested jars - sidesteps that incompatibility rather than fighting it.
+     *
+     * <p>The temp directory is created with owner-only permissions ({@code rwx------}): the
+     * default system temp location it lives under (e.g. {@code /tmp}) is world-writable and
+     * shared by every user/process on the host, so without this, another local user could reach
+     * (or - via a pre-placed symlink - redirect) these files. Restricting just this one top-level
+     * directory is sufficient: Unix directory traversal requires execute permission on every
+     * ancestor directory in a path, so nothing else on the host can reach anything created under
+     * it regardless of the individual files' own permissions.
      */
-    private static Path extractFixtures(final String fixtureSet) {
+    // Package-private (not private) so the temp-directory permission hardening below is directly
+    // unit-testable without needing a full WireMockServer/Spring context.
+    /* default */ static Path extractFixtures(final String fixtureSet) {
         final String basePath = "wiremock/" + fixtureSet + "/";
         try {
-            final Path targetDir = Files.createTempDirectory("stub-wiremock-" + fixtureSet + "-");
+            final FileAttribute<Set<PosixFilePermission>> ownerOnly = PosixFilePermissions.asFileAttribute(
+                    EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE,
+                            PosixFilePermission.OWNER_EXECUTE));
+            final Path targetDir = Files.createTempDirectory("stub-wiremock-" + fixtureSet + "-", ownerOnly);
             final PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
             final Resource[] resources = resolver.getResources("classpath*:" + basePath + "**/*");
             for (final Resource resource : resources) {

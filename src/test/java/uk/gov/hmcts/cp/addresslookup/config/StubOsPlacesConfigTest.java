@@ -3,6 +3,13 @@ package uk.gov.hmcts.cp.addresslookup.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.stream.Stream;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
 
@@ -49,5 +56,31 @@ class StubOsPlacesConfigTest {
 
         assertThatThrownBy(() -> restClient.get().uri("/anything").retrieve().toBodilessEntity())
                 .satisfies(ex -> assertThat(ex.getMessage()).contains(String.valueOf(STUB_PORT)));
+    }
+
+    @Test
+    void extracted_fixtures_directory_is_restricted_to_owner_only() throws Exception {
+        // SonarCloud: temp directories under the shared, world-writable system temp location
+        // (e.g. /tmp) must not be left accessible to other local users/processes.
+        final Path fixturesDir = StubOsPlacesConfig.extractFixtures("ste");
+        try {
+            final EnumSet<PosixFilePermission> permissions =
+                    EnumSet.copyOf(Files.getPosixFilePermissions(fixturesDir));
+
+            assertThat(permissions).containsExactlyInAnyOrder(
+                    PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE);
+        } finally {
+            try (Stream<Path> paths = Files.walk(fixturesDir)) {
+                paths.sorted(Comparator.reverseOrder()).forEach(StubOsPlacesConfigTest::deleteQuietly);
+            }
+        }
+    }
+
+    private static void deleteQuietly(final Path path) {
+        try {
+            Files.delete(path);
+        } catch (final Exception ignored) {
+            // best-effort cleanup only
+        }
     }
 }
