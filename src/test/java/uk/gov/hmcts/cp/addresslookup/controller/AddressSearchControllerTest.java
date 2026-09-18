@@ -105,6 +105,19 @@ class AddressSearchControllerTest {
     }
 
     @Test
+    void allows_the_cjscppuid_caller_identity_query_parameter() throws Exception {
+        // APIM/IDAM's caller-identity value - normally stripped as a header upstream, but some
+        // callers pass it through as a query parameter too, so it's never rejected here either.
+        when(addressSearchService.searchByPostcode("SW1A 1AA", false))
+                .thenReturn(new AddressSearchResponse(List.of()));
+
+        mockMvc.perform(get("/addresses/postcode")
+                        .param("postcode", "SW1A 1AA")
+                        .param("CJSCPPUID", "some-caller-id"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void any_origin_is_allowed_by_default() throws Exception {
         mockMvc.perform(options("/addresses/postcode")
                         .header("Origin", "http://localhost:4200")

@@ -23,10 +23,15 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * believe a filter was applied when it was not (e.g. OS Places' own {@code bbox}/{@code dataset}
  * params, which this API deliberately does not expose).
  *
- * <p>One deliberate, universal exception: {@code _}, the long-standing HTTP client cache-busting
- * convention (e.g. jQuery's {@code cache: false}, which appends {@code _=<random value>} to every
- * GET). It carries no semantic meaning a caller could mistake for an applied filter, so it's
- * ignored on every operation rather than rejected.
+ * <p>A couple of deliberate, universal exceptions, ignored on every operation rather than rejected
+ * since neither carries any semantic meaning a caller could mistake for an applied filter:
+ * <ul>
+ *     <li>{@code _}, the long-standing HTTP client cache-busting convention (e.g. jQuery's
+ *     {@code cache: false}, which appends {@code _=<random value>} to every GET).</li>
+ *     <li>{@code CJSCPPUID}, the caller-identity value APIM/IDAM propagates through the gateway -
+ *     normally stripped as a header upstream, but some callers pass it through as a query
+ *     parameter too.</li>
+ * </ul>
  *
  * <p>Uses {@link MethodParameter#getParameterAnnotation}, not raw {@code java.lang.reflect}
  * introspection - the controller implements an OpenAPI-generated interface whose default methods
@@ -36,7 +41,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class UnrecognisedQueryParamInterceptor implements HandlerInterceptor {
 
-    private static final String CACHE_BUSTER_PARAM = "_";
+    private static final Set<String> ALWAYS_ALLOWED_PARAMS = Set.of("_", "CJSCPPUID");
 
     @Override
     public boolean preHandle(final HttpServletRequest request, final HttpServletResponse response,
@@ -47,7 +52,7 @@ public class UnrecognisedQueryParamInterceptor implements HandlerInterceptor {
                 final Enumeration<String> paramNames = request.getParameterNames();
                 while (paramNames.hasMoreElements()) {
                     final String paramName = paramNames.nextElement();
-                    if (!allowed.contains(paramName) && !CACHE_BUSTER_PARAM.equals(paramName)) {
+                    if (!allowed.contains(paramName) && !ALWAYS_ALLOWED_PARAMS.contains(paramName)) {
                         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                                 "Unrecognised query parameter '" + paramName + "'");
                     }
