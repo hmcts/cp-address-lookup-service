@@ -53,6 +53,7 @@ resilience4j:
         wait-duration-in-open-state: ${OS_PLACES_CB_WAIT_OPEN:30s}
         permitted-number-of-calls-in-half-open-state: ${OS_PLACES_CB_HALF_OPEN_CALLS:3}
         automatic-transition-from-open-to-half-open-enabled: true
+        register-health-indicator: true
         record-exceptions:
           - java.util.concurrent.TimeoutException
           - org.springframework.web.client.ResourceAccessException
