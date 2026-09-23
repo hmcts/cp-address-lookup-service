@@ -11,7 +11,7 @@ import uk.gov.hmcts.cp.addresslookup.config.OsPlacesClientProperties;
 class OsPlacesKeyHealthIndicatorTest {
 
     private static OsPlacesClientProperties properties(final String apiKey, final boolean keyRequired) {
-        return new OsPlacesClientProperties("https://api.os.uk", apiKey, 3000, 10_000, keyRequired);
+        return new OsPlacesClientProperties("https://api.os.uk", apiKey, 3000, 10_000, keyRequired, null, null);
     }
 
     @Test

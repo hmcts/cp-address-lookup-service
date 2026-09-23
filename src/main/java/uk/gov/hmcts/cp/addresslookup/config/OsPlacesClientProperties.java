@@ -14,11 +14,15 @@ public record OsPlacesClientProperties(
         String apiKey,
         int connectTimeoutMs,
         int readTimeoutMs,
-        boolean keyRequired
+        boolean keyRequired,
+        String postcodePath,
+        String findPath
 ) {
 
     private static final int DEFAULT_CONNECT_TIMEOUT_MS = 3000;
     private static final int DEFAULT_READ_TIMEOUT_MS = 10_000;
+    private static final String DEFAULT_POSTCODE_PATH = "/search/places/v1/postcode";
+    private static final String DEFAULT_FIND_PATH = "/search/places/v1/find";
 
     public OsPlacesClientProperties {
         if (connectTimeoutMs <= 0) {
@@ -26,6 +30,12 @@ public record OsPlacesClientProperties(
         }
         if (readTimeoutMs <= 0) {
             readTimeoutMs = DEFAULT_READ_TIMEOUT_MS;
+        }
+        if (postcodePath == null || postcodePath.isBlank()) {
+            postcodePath = DEFAULT_POSTCODE_PATH;
+        }
+        if (findPath == null || findPath.isBlank()) {
+            findPath = DEFAULT_FIND_PATH;
         }
     }
 
@@ -45,6 +55,8 @@ public record OsPlacesClientProperties(
         return "OsPlacesClientProperties[baseUrl=" + baseUrl
                 + ", apiKey=****, connectTimeoutMs=" + connectTimeoutMs
                 + ", readTimeoutMs=" + readTimeoutMs
-                + ", keyRequired=" + keyRequired + "]";
+                + ", keyRequired=" + keyRequired
+                + ", postcodePath=" + postcodePath
+                + ", findPath=" + findPath + "]";
     }
 }

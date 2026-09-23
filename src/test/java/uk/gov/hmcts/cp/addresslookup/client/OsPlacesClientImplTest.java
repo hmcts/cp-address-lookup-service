@@ -42,12 +42,12 @@ class OsPlacesClientImplTest {
 
     private final OsPlacesRemoteCaller remoteCaller = mock(OsPlacesRemoteCaller.class);
     private final OsPlacesClientProperties properties =
-            new OsPlacesClientProperties("https://os-places.test", API_KEY, 3000, 10_000, false);
+            new OsPlacesClientProperties("https://os-places.test", API_KEY, 3000, 10_000, false, null, null);
     private final OsPlacesClientImpl client = new OsPlacesClientImpl(remoteCaller, properties);
 
     @Test
     void search_by_postcode_delegates_to_the_remote_caller_and_maps_dpa_records() {
-        when(remoteCaller.postcode(eq("SW1A 1AA"), eq(API_KEY))).thenReturn(successResponse());
+        when(remoteCaller.postcode("SW1A 1AA", API_KEY)).thenReturn(successResponse());
 
         final List<Map<String, Object>> results = client.searchByPostcode("SW1A 1AA");
 
@@ -58,7 +58,7 @@ class OsPlacesClientImplTest {
 
     @Test
     void search_by_address_delegates_to_the_remote_callers_find_method() {
-        when(remoteCaller.find(eq("10 Downing Street"), eq(API_KEY))).thenReturn(successResponse());
+        when(remoteCaller.find("10 Downing Street", API_KEY)).thenReturn(successResponse());
 
         final List<Map<String, Object>> results = client.searchByAddress("10 Downing Street");
 
@@ -68,7 +68,7 @@ class OsPlacesClientImplTest {
 
     @Test
     void find_best_match_delegates_to_the_remote_callers_match_method() {
-        when(remoteCaller.match(eq("10 Downing Street"), eq(new BigDecimal("0.7")), eq(API_KEY)))
+        when(remoteCaller.match("10 Downing Street", new BigDecimal("0.7"), API_KEY))
                 .thenReturn(successResponse());
 
         final List<Map<String, Object>> results = client.findBestMatch("10 Downing Street", new BigDecimal("0.7"));
@@ -88,7 +88,7 @@ class OsPlacesClientImplTest {
 
     @Test
     void returns_empty_list_when_results_is_null() {
-        when(remoteCaller.postcode(eq("ZZ99 1AA"), eq(API_KEY))).thenReturn(new OsPlacesSearchResponse(null));
+        when(remoteCaller.postcode("ZZ99 1AA", API_KEY)).thenReturn(new OsPlacesSearchResponse(null));
 
         assertThat(client.searchByPostcode("ZZ99 1AA")).isEmpty();
     }
@@ -170,7 +170,7 @@ class OsPlacesClientImplTest {
     }
 
     private void stubFailure(final RuntimeException cause) {
-        when(remoteCaller.postcode(eq("SW1A 1AA"), eq(API_KEY))).thenThrow(cause);
+        when(remoteCaller.postcode("SW1A 1AA", API_KEY)).thenThrow(cause);
     }
 
     private void assertReason(final DegradedReason expected) {

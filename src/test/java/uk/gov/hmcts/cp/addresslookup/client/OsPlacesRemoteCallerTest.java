@@ -24,6 +24,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import uk.gov.hmcts.cp.addresslookup.client.dto.OsPlacesSearchResponse;
+import uk.gov.hmcts.cp.addresslookup.config.OsPlacesClientProperties;
 
 /**
  * Proves the actual outbound HTTP call shape (URL, query params) and how OS Places' raw HTTP
@@ -39,9 +40,11 @@ class OsPlacesRemoteCallerTest {
 
     private final RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+    private final OsPlacesClientProperties properties =
+            new OsPlacesClientProperties(BASE_URL, API_KEY, 3000, 10_000, false, null, null);
     // The @CircuitBreaker annotation is inert on a plain `new` instance anyway (it only applies
     // via Spring AOP proxying), so this is a genuinely synchronous, direct call in this test.
-    private final OsPlacesRemoteCaller remoteCaller = new OsPlacesRemoteCaller(builder.build());
+    private final OsPlacesRemoteCaller remoteCaller = new OsPlacesRemoteCaller(builder.build(), properties);
 
     @Test
     void postcode_returns_the_parsed_response_on_success() {
@@ -112,7 +115,7 @@ class OsPlacesRemoteCallerTest {
     @Test
     void postcode_connection_failure_surfaces_as_resource_access_exception() {
         final RestClient failingClient = RestClient.builder().baseUrl("http://127.0.0.1:1").build();
-        final OsPlacesRemoteCaller callerWithBadHost = new OsPlacesRemoteCaller(failingClient);
+        final OsPlacesRemoteCaller callerWithBadHost = new OsPlacesRemoteCaller(failingClient, properties);
 
         assertThatThrownBy(() -> callerWithBadHost.postcode("SW1A 1AA", API_KEY))
                 .isInstanceOf(ResourceAccessException.class);

@@ -24,6 +24,8 @@ os-places:
     # true only on OS-backed tiers (SIT/PRP/PRD) - set via Helm values per environment. Fixture
     # tiers (STE/DEV/NFT) leave this false, since they have no OS Places key at all.
     key-required: ${OS_PLACES_KEY_REQUIRED:false}
+    postcode-path: ${OS_PLACES_POSTCODE_PATH:/search/places/v1/postcode}
+    find-path: ${OS_PLACES_FIND_PATH:/search/places/v1/find}
 
 # SB-06: CircuitBreaker on the OS Places call (proven need: OS outage 2026-06-05/06) - open circuit
 # answers degraded instantly, no OS Places call attempted. Only records availability failures

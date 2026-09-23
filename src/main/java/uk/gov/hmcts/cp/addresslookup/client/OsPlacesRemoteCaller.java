@@ -8,6 +8,7 @@ import org.springframework.web.client.RestClient;
 
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import uk.gov.hmcts.cp.addresslookup.client.dto.OsPlacesSearchResponse;
+import uk.gov.hmcts.cp.addresslookup.config.OsPlacesClientProperties;
 
 /**
  * SB-06 (revised): owns the actual outbound HTTP call to OS Places, decorated with Resilience4j's
@@ -31,22 +32,24 @@ import uk.gov.hmcts.cp.addresslookup.client.dto.OsPlacesSearchResponse;
 @Component
 public class OsPlacesRemoteCaller {
 
-    private static final String POSTCODE_PATH = "/search/places/v1/postcode";
-    private static final String FIND_PATH = "/search/places/v1/find";
     private static final int MATCH_MAX_RESULTS = 1;
     // Matches resilience4j.circuitbreaker.instances.osPlaces in application.yaml.
     private static final String CIRCUIT_BREAKER_NAME = "osPlaces";
 
     private final RestClient restClient;
+    private final String postcodePath;
+    private final String findPath;
 
-    public OsPlacesRemoteCaller(final RestClient osPlacesRestClient) {
+    public OsPlacesRemoteCaller(final RestClient osPlacesRestClient, final OsPlacesClientProperties properties) {
         this.restClient = Objects.requireNonNull(osPlacesRestClient, "osPlacesRestClient");
+        this.postcodePath = Objects.requireNonNull(properties, "properties").postcodePath();
+        this.findPath = properties.findPath();
     }
 
     @CircuitBreaker(name = CIRCUIT_BREAKER_NAME)
     public OsPlacesSearchResponse postcode(final String postcode, final String apiKey) {
         return restClient.get()
-                .uri(uriBuilder -> uriBuilder.path(POSTCODE_PATH)
+                .uri(uriBuilder -> uriBuilder.path(postcodePath)
                         .queryParam("postcode", postcode)
                         .queryParam("key", apiKey)
                         .build())
@@ -57,7 +60,7 @@ public class OsPlacesRemoteCaller {
     @CircuitBreaker(name = CIRCUIT_BREAKER_NAME)
     public OsPlacesSearchResponse find(final String address, final String apiKey) {
         return restClient.get()
-                .uri(uriBuilder -> uriBuilder.path(FIND_PATH)
+                .uri(uriBuilder -> uriBuilder.path(findPath)
                         .queryParam("query", address)
                         .queryParam("key", apiKey)
                         .build())
@@ -69,7 +72,7 @@ public class OsPlacesRemoteCaller {
     public OsPlacesSearchResponse match(final String address, final BigDecimal minMatch, final String apiKey) {
         return restClient.get()
                 .uri(uriBuilder -> {
-                    uriBuilder.path(FIND_PATH)
+                    uriBuilder.path(findPath)
                             .queryParam("query", address)
                             .queryParam("maxresults", MATCH_MAX_RESULTS);
                     if (minMatch != null) {
