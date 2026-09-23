@@ -2,79 +2,102 @@ package uk.gov.hmcts.cp.addresslookup.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.queryParam;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.client.MockRestServiceServer;
-import org.springframework.web.client.RestClient;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientException;
 
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import uk.gov.hmcts.cp.addresslookup.client.dto.OsPlacesResult;
+import uk.gov.hmcts.cp.addresslookup.client.dto.OsPlacesSearchResponse;
 import uk.gov.hmcts.cp.addresslookup.config.OsPlacesClientProperties;
 import uk.gov.hmcts.cp.addresslookup.exception.DegradedModeException;
 import uk.gov.hmcts.cp.openapi.model.al.DegradedReason;
 
+/**
+ * Since the actual OS Places HTTP call lives on {@link OsPlacesRemoteCaller} (see
+ * {@link OsPlacesRemoteCallerTest} for that request-shape coverage), this class only tests
+ * {@link OsPlacesClientImpl}'s own remaining job - mapping whatever the (mocked) caller throws to
+ * the correct {@link DegradedReason}, operation-agnostically, plus the three operations'
+ * delegation wiring.
+ */
 class OsPlacesClientImplTest {
 
-    private static final String BASE_URL = "https://os-places.test";
+    private static final String API_KEY = "test-key";
 
-    private final RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
-    private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+    private final OsPlacesRemoteCaller remoteCaller = mock(OsPlacesRemoteCaller.class);
     private final OsPlacesClientProperties properties =
-            new OsPlacesClientProperties(BASE_URL, "test-key", 3000, 10_000, false);
-    private final OsPlacesClientImpl client = new OsPlacesClientImpl(builder.build(), properties);
+            new OsPlacesClientProperties("https://os-places.test", API_KEY, 3000, 10_000, false,
+                    "/search/places/v1/postcode", "/search/places/v1/find");
+    private final OsPlacesClientImpl client = new OsPlacesClientImpl(remoteCaller, properties);
 
     @Test
-    void returns_dpa_records_on_success() {
-        server.expect(requestTo(BASE_URL + "/search/places/v1/postcode?postcode=SW1A%201AA&key=test-key"))
-                .andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess("""
-                        {"results":[{"DPA":{"UPRN":"10033544886","BUILDING_NUMBER":"10","THOROUGHFARE_NAME":"Downing Street","POSTCODE":"SW1A 1AA"}}]}
-                        """, MediaType.APPLICATION_JSON));
+    void search_by_postcode_delegates_to_the_remote_caller_and_maps_dpa_records() {
+        when(remoteCaller.postcode("SW1A 1AA", API_KEY)).thenReturn(successResponse());
 
         final List<Map<String, Object>> results = client.searchByPostcode("SW1A 1AA");
 
         assertThat(results).hasSize(1);
         assertThat(results.get(0)).containsEntry("UPRN", "10033544886");
-        server.verify();
+        verify(remoteCaller).postcode("SW1A 1AA", API_KEY);
+    }
+
+    @Test
+    void search_by_address_delegates_to_the_remote_callers_find_method() {
+        when(remoteCaller.find("10 Downing Street", API_KEY)).thenReturn(successResponse());
+
+        final List<Map<String, Object>> results = client.searchByAddress("10 Downing Street");
+
+        assertThat(results).hasSize(1);
+        verify(remoteCaller).find("10 Downing Street", API_KEY);
+    }
+
+    @Test
+    void find_best_match_delegates_to_the_remote_callers_match_method() {
+        when(remoteCaller.match("10 Downing Street", new BigDecimal("0.7"), API_KEY))
+                .thenReturn(successResponse());
+
+        final List<Map<String, Object>> results = client.findBestMatch("10 Downing Street", new BigDecimal("0.7"));
+
+        assertThat(results).hasSize(1);
+        verify(remoteCaller).match("10 Downing Street", new BigDecimal("0.7"), API_KEY);
+    }
+
+    @Test
+    void find_best_match_allows_a_null_min_match() {
+        when(remoteCaller.match(eq("10 Downing Street"), isNull(), eq(API_KEY))).thenReturn(successResponse());
+
+        client.findBestMatch("10 Downing Street", null);
+
+        verify(remoteCaller).match("10 Downing Street", null, API_KEY);
     }
 
     @Test
     void returns_empty_list_when_results_is_null() {
-        server.expect(requestTo(BASE_URL + "/search/places/v1/postcode?postcode=ZZ99%201AA&key=test-key"))
-                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        when(remoteCaller.postcode("ZZ99 1AA", API_KEY)).thenReturn(new OsPlacesSearchResponse(null));
 
         assertThat(client.searchByPostcode("ZZ99 1AA")).isEmpty();
     }
 
     @Test
-    void appends_the_api_key_as_a_query_param() {
-        server.expect(requestTo(BASE_URL + "/search/places/v1/postcode?postcode=SW1A%201AA&key=test-key"))
-                .andExpect(queryParam("key", "test-key"))
-                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
-
-        client.searchByPostcode("SW1A 1AA");
-
-        server.verify();
-    }
-
-    @Test
     void maps_429_to_upstream_rate_limit_with_retry_after() {
-        server.expect(requestTo(BASE_URL + "/search/places/v1/postcode?postcode=SW1A%201AA&key=test-key"))
-                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
-                        .header(HttpHeaders.RETRY_AFTER, "30")
-                        .body("{}"));
+        stubFailure(HttpClientErrorException.create(HttpStatus.TOO_MANY_REQUESTS, "Too Many Requests",
+                headersWithRetryAfter(), new byte[0], StandardCharsets.UTF_8));
 
         assertThatThrownBy(() -> client.searchByPostcode("SW1A 1AA"))
                 .isInstanceOf(DegradedModeException.class)
@@ -87,197 +110,88 @@ class OsPlacesClientImplTest {
 
     @Test
     void maps_401_to_upstream_auth() {
-        server.expect(requestTo(BASE_URL + "/search/places/v1/postcode?postcode=SW1A%201AA&key=test-key"))
-                .andRespond(withStatus(HttpStatus.UNAUTHORIZED).body("{}"));
+        stubFailure(HttpClientErrorException.create(HttpStatus.UNAUTHORIZED, "Unauthorized",
+                HttpHeaders.EMPTY, new byte[0], StandardCharsets.UTF_8));
 
-        assertThatThrownBy(() -> client.searchByPostcode("SW1A 1AA"))
-                .isInstanceOf(DegradedModeException.class)
-                .extracting(ex -> ((DegradedModeException) ex).getReason())
-                .isEqualTo(DegradedReason.UPSTREAM_AUTH);
+        assertReason(DegradedReason.UPSTREAM_AUTH);
+    }
+
+    @Test
+    void maps_403_to_upstream_auth() {
+        stubFailure(HttpClientErrorException.create(HttpStatus.FORBIDDEN, "Forbidden",
+                HttpHeaders.EMPTY, new byte[0], StandardCharsets.UTF_8));
+
+        assertReason(DegradedReason.UPSTREAM_AUTH);
     }
 
     @Test
     void maps_500_to_upstream_server_error() {
-        server.expect(requestTo(BASE_URL + "/search/places/v1/postcode?postcode=SW1A%201AA&key=test-key"))
-                .andRespond(withServerError());
+        stubFailure(HttpServerErrorException.create(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error",
+                HttpHeaders.EMPTY, new byte[0], StandardCharsets.UTF_8));
 
-        assertThatThrownBy(() -> client.searchByPostcode("SW1A 1AA"))
-                .isInstanceOf(DegradedModeException.class)
-                .extracting(ex -> ((DegradedModeException) ex).getReason())
-                .isEqualTo(DegradedReason.UPSTREAM_SERVER_ERROR);
+        assertReason(DegradedReason.UPSTREAM_SERVER_ERROR);
     }
 
     @Test
-    void maps_503_to_upstream_timeout() {
-        server.expect(requestTo(BASE_URL + "/search/places/v1/postcode?postcode=SW1A%201AA&key=test-key"))
-                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE).body("{}"));
+    void maps_other_5xx_to_upstream_timeout() {
+        stubFailure(HttpServerErrorException.create(HttpStatus.SERVICE_UNAVAILABLE, "Service Unavailable",
+                HttpHeaders.EMPTY, new byte[0], StandardCharsets.UTF_8));
 
-        assertThatThrownBy(() -> client.searchByPostcode("SW1A 1AA"))
-                .isInstanceOf(DegradedModeException.class)
-                .extracting(ex -> ((DegradedModeException) ex).getReason())
-                .isEqualTo(DegradedReason.UPSTREAM_TIMEOUT);
+        assertReason(DegradedReason.UPSTREAM_TIMEOUT);
+    }
+
+    @Test
+    void maps_other_4xx_to_upstream_contract() {
+        stubFailure(HttpClientErrorException.create(HttpStatus.BAD_REQUEST, "Bad Request",
+                HttpHeaders.EMPTY, new byte[0], StandardCharsets.UTF_8));
+
+        assertReason(DegradedReason.UPSTREAM_CONTRACT);
     }
 
     @Test
     void maps_malformed_json_to_upstream_contract() {
-        server.expect(requestTo(BASE_URL + "/search/places/v1/postcode?postcode=SW1A%201AA&key=test-key"))
-                .andRespond(withSuccess("not-json", MediaType.APPLICATION_JSON));
+        stubFailure(new RestClientException("OS Places response could not be parsed"));
 
+        assertReason(DegradedReason.UPSTREAM_CONTRACT);
+    }
+
+    @Test
+    void maps_connection_failures_to_upstream_timeout() {
+        stubFailure(new ResourceAccessException("Connection refused"));
+
+        assertReason(DegradedReason.UPSTREAM_TIMEOUT);
+    }
+
+    @Test
+    void maps_circuit_open_to_circuit_open() {
+        final CircuitBreaker circuitBreaker = CircuitBreaker.ofDefaults("osPlaces");
+        stubFailure(CallNotPermittedException.createCallNotPermittedException(circuitBreaker));
+
+        assertReason(DegradedReason.CIRCUIT_OPEN);
+    }
+
+    private void stubFailure(final RuntimeException cause) {
+        when(remoteCaller.postcode("SW1A 1AA", API_KEY)).thenThrow(cause);
+    }
+
+    private void assertReason(final DegradedReason expected) {
         assertThatThrownBy(() -> client.searchByPostcode("SW1A 1AA"))
                 .isInstanceOf(DegradedModeException.class)
                 .extracting(ex -> ((DegradedModeException) ex).getReason())
-                .isEqualTo(DegradedReason.UPSTREAM_CONTRACT);
+                .isEqualTo(expected);
     }
 
-    @Test
-    void wraps_connection_failures_as_upstream_timeout() {
-        final RestClient failingClient = RestClient.builder().baseUrl("http://127.0.0.1:1").build();
-        final OsPlacesClientImpl clientWithBadHost = new OsPlacesClientImpl(failingClient, properties);
-
-        assertThatThrownBy(() -> clientWithBadHost.searchByPostcode("SW1A 1AA"))
-                .isInstanceOf(DegradedModeException.class)
-                .extracting(ex -> ((DegradedModeException) ex).getReason())
-                .isEqualTo(DegradedReason.UPSTREAM_TIMEOUT);
+    private static HttpHeaders headersWithRetryAfter() {
+        final HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.RETRY_AFTER, "30");
+        return headers;
     }
 
-    @Test
-    void address_search_returns_dpa_records_on_success() {
-        server.expect(requestTo(BASE_URL + "/search/places/v1/find?query=10%20Downing%20Street&key=test-key"))
-                .andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess("""
-                        {"results":[{"DPA":{"UPRN":"10033544886","BUILDING_NUMBER":"10","THOROUGHFARE_NAME":"Downing Street","POSTCODE":"SW1A 1AA"}}]}
-                        """, MediaType.APPLICATION_JSON));
-
-        final List<Map<String, Object>> results = client.searchByAddress("10 Downing Street");
-
-        assertThat(results).hasSize(1);
-        assertThat(results.get(0)).containsEntry("UPRN", "10033544886");
-        server.verify();
-    }
-
-    @Test
-    void address_search_returns_empty_list_when_results_is_null() {
-        server.expect(requestTo(BASE_URL + "/search/places/v1/find?query=nonsense&key=test-key"))
-                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
-
-        assertThat(client.searchByAddress("nonsense")).isEmpty();
-    }
-
-    @Test
-    void address_search_uses_query_param_not_postcode() {
-        server.expect(requestTo(BASE_URL + "/search/places/v1/find?query=10%20Downing%20Street&key=test-key"))
-                .andExpect(queryParam("query", "10%20Downing%20Street"))
-                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
-
-        client.searchByAddress("10 Downing Street");
-
-        server.verify();
-    }
-
-    @Test
-    void address_search_maps_429_to_upstream_rate_limit_with_retry_after() {
-        server.expect(requestTo(BASE_URL + "/search/places/v1/find?query=10%20Downing%20Street&key=test-key"))
-                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
-                        .header(HttpHeaders.RETRY_AFTER, "30")
-                        .body("{}"));
-
-        assertThatThrownBy(() -> client.searchByAddress("10 Downing Street"))
-                .isInstanceOf(DegradedModeException.class)
-                .satisfies(ex -> {
-                    final DegradedModeException degraded = (DegradedModeException) ex;
-                    assertThat(degraded.getReason()).isEqualTo(DegradedReason.UPSTREAM_RATE_LIMIT);
-                    assertThat(degraded.getRetryAfterSeconds()).isEqualTo(30);
-                });
-    }
-
-    @Test
-    void address_search_maps_401_to_upstream_auth() {
-        server.expect(requestTo(BASE_URL + "/search/places/v1/find?query=10%20Downing%20Street&key=test-key"))
-                .andRespond(withStatus(HttpStatus.UNAUTHORIZED).body("{}"));
-
-        assertThatThrownBy(() -> client.searchByAddress("10 Downing Street"))
-                .isInstanceOf(DegradedModeException.class)
-                .extracting(ex -> ((DegradedModeException) ex).getReason())
-                .isEqualTo(DegradedReason.UPSTREAM_AUTH);
-    }
-
-    @Test
-    void address_search_maps_500_to_upstream_server_error() {
-        server.expect(requestTo(BASE_URL + "/search/places/v1/find?query=10%20Downing%20Street&key=test-key"))
-                .andRespond(withServerError());
-
-        assertThatThrownBy(() -> client.searchByAddress("10 Downing Street"))
-                .isInstanceOf(DegradedModeException.class)
-                .extracting(ex -> ((DegradedModeException) ex).getReason())
-                .isEqualTo(DegradedReason.UPSTREAM_SERVER_ERROR);
-    }
-
-    @Test
-    void address_search_maps_malformed_json_to_upstream_contract() {
-        server.expect(requestTo(BASE_URL + "/search/places/v1/find?query=10%20Downing%20Street&key=test-key"))
-                .andRespond(withSuccess("not-json", MediaType.APPLICATION_JSON));
-
-        assertThatThrownBy(() -> client.searchByAddress("10 Downing Street"))
-                .isInstanceOf(DegradedModeException.class)
-                .extracting(ex -> ((DegradedModeException) ex).getReason())
-                .isEqualTo(DegradedReason.UPSTREAM_CONTRACT);
-    }
-
-    @Test
-    void address_search_wraps_connection_failures_as_upstream_timeout() {
-        final RestClient failingClient = RestClient.builder().baseUrl("http://127.0.0.1:1").build();
-        final OsPlacesClientImpl clientWithBadHost = new OsPlacesClientImpl(failingClient, properties);
-
-        assertThatThrownBy(() -> clientWithBadHost.searchByAddress("10 Downing Street"))
-                .isInstanceOf(DegradedModeException.class)
-                .extracting(ex -> ((DegradedModeException) ex).getReason())
-                .isEqualTo(DegradedReason.UPSTREAM_TIMEOUT);
-    }
-
-    @Test
-    void find_best_match_sends_minmatch_and_maxresults_of_one() {
-        server.expect(requestTo(BASE_URL
-                        + "/search/places/v1/find?query=10%20Downing%20Street&maxresults=1&minmatch=0.7&key=test-key"))
-                .andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess("""
-                        {"results":[{"DPA":{"UPRN":"10033544886","BUILDING_NUMBER":"10","THOROUGHFARE_NAME":"Downing Street","POSTCODE":"SW1A 1AA","MATCH":"0.95"}}]}
-                        """, MediaType.APPLICATION_JSON));
-
-        final List<Map<String, Object>> results = client.findBestMatch("10 Downing Street", new BigDecimal("0.7"));
-
-        assertThat(results).hasSize(1);
-        assertThat(results.get(0)).containsEntry("MATCH", "0.95");
-        server.verify();
-    }
-
-    @Test
-    void find_best_match_omits_minmatch_when_not_provided() {
-        server.expect(requestTo(BASE_URL + "/search/places/v1/find?query=10%20Downing%20Street&maxresults=1&key=test-key"))
-                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
-
-        client.findBestMatch("10 Downing Street", null);
-
-        server.verify();
-    }
-
-    @Test
-    void find_best_match_returns_empty_list_for_a_nonsense_address() {
-        server.expect(requestTo(BASE_URL
-                        + "/search/places/v1/find?query=complete%20nonsense&maxresults=1&minmatch=0.7&key=test-key"))
-                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
-
-        assertThat(client.findBestMatch("complete nonsense", new BigDecimal("0.7"))).isEmpty();
-    }
-
-    @Test
-    void find_best_match_maps_401_to_upstream_auth() {
-        server.expect(requestTo(BASE_URL
-                        + "/search/places/v1/find?query=10%20Downing%20Street&maxresults=1&minmatch=0.7&key=test-key"))
-                .andRespond(withStatus(HttpStatus.UNAUTHORIZED).body("{}"));
-
-        assertThatThrownBy(() -> client.findBestMatch("10 Downing Street", new BigDecimal("0.7")))
-                .isInstanceOf(DegradedModeException.class)
-                .extracting(ex -> ((DegradedModeException) ex).getReason())
-                .isEqualTo(DegradedReason.UPSTREAM_AUTH);
+    private static OsPlacesSearchResponse successResponse() {
+        return new OsPlacesSearchResponse(List.of(new OsPlacesResult(Map.of(
+                "UPRN", "10033544886",
+                "BUILDING_NUMBER", "10",
+                "THOROUGHFARE_NAME", "Downing Street",
+                "POSTCODE", "SW1A 1AA"))));
     }
 }

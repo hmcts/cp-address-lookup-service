@@ -14,12 +14,17 @@ public record OsPlacesClientProperties(
         String apiKey,
         int connectTimeoutMs,
         int readTimeoutMs,
-        boolean keyRequired
+        boolean keyRequired,
+        String postcodePath,
+        String findPath
 ) {
 
     private static final int DEFAULT_CONNECT_TIMEOUT_MS = 3000;
     private static final int DEFAULT_READ_TIMEOUT_MS = 10_000;
 
+    // No Java-side default for postcodePath/findPath (Sonar: URIs should not be hardcoded) -
+    // application.yaml's own ${...:default} syntax is the single source of truth for those
+    // literals; callers that bypass Spring binding (tests) must pass explicit values.
     public OsPlacesClientProperties {
         if (connectTimeoutMs <= 0) {
             connectTimeoutMs = DEFAULT_CONNECT_TIMEOUT_MS;
@@ -45,6 +50,8 @@ public record OsPlacesClientProperties(
         return "OsPlacesClientProperties[baseUrl=" + baseUrl
                 + ", apiKey=****, connectTimeoutMs=" + connectTimeoutMs
                 + ", readTimeoutMs=" + readTimeoutMs
-                + ", keyRequired=" + keyRequired + "]";
+                + ", keyRequired=" + keyRequired
+                + ", postcodePath=" + postcodePath
+                + ", findPath=" + findPath + "]";
     }
 }
