@@ -12,8 +12,6 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeoutException;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -32,11 +30,11 @@ import uk.gov.hmcts.cp.addresslookup.exception.DegradedModeException;
 import uk.gov.hmcts.cp.openapi.model.al.DegradedReason;
 
 /**
- * SB-06: since the actual OS Places HTTP call now lives on {@link OsPlacesRemoteCaller} (see
+ * Since the actual OS Places HTTP call lives on {@link OsPlacesRemoteCaller} (see
  * {@link OsPlacesRemoteCallerTest} for that request-shape coverage), this class only tests
- * {@link OsPlacesClientImpl}'s own remaining job - joining the returned future and mapping
- * whatever failed it to the correct {@link DegradedReason}, operation-agnostically, plus the
- * three operations' delegation wiring.
+ * {@link OsPlacesClientImpl}'s own remaining job - mapping whatever the (mocked) caller throws to
+ * the correct {@link DegradedReason}, operation-agnostically, plus the three operations'
+ * delegation wiring.
  */
 class OsPlacesClientImplTest {
 
@@ -44,13 +42,12 @@ class OsPlacesClientImplTest {
 
     private final OsPlacesRemoteCaller remoteCaller = mock(OsPlacesRemoteCaller.class);
     private final OsPlacesClientProperties properties =
-            new OsPlacesClientProperties("https://os-places.test", API_KEY, 3000, 12_000, false);
+            new OsPlacesClientProperties("https://os-places.test", API_KEY, 3000, 10_000, false);
     private final OsPlacesClientImpl client = new OsPlacesClientImpl(remoteCaller, properties);
 
     @Test
     void search_by_postcode_delegates_to_the_remote_caller_and_maps_dpa_records() {
-        when(remoteCaller.postcode(eq("SW1A 1AA"), eq(API_KEY)))
-                .thenReturn(CompletableFuture.completedFuture(successResponse()));
+        when(remoteCaller.postcode(eq("SW1A 1AA"), eq(API_KEY))).thenReturn(successResponse());
 
         final List<Map<String, Object>> results = client.searchByPostcode("SW1A 1AA");
 
@@ -61,8 +58,7 @@ class OsPlacesClientImplTest {
 
     @Test
     void search_by_address_delegates_to_the_remote_callers_find_method() {
-        when(remoteCaller.find(eq("10 Downing Street"), eq(API_KEY)))
-                .thenReturn(CompletableFuture.completedFuture(successResponse()));
+        when(remoteCaller.find(eq("10 Downing Street"), eq(API_KEY))).thenReturn(successResponse());
 
         final List<Map<String, Object>> results = client.searchByAddress("10 Downing Street");
 
@@ -73,7 +69,7 @@ class OsPlacesClientImplTest {
     @Test
     void find_best_match_delegates_to_the_remote_callers_match_method() {
         when(remoteCaller.match(eq("10 Downing Street"), eq(new BigDecimal("0.7")), eq(API_KEY)))
-                .thenReturn(CompletableFuture.completedFuture(successResponse()));
+                .thenReturn(successResponse());
 
         final List<Map<String, Object>> results = client.findBestMatch("10 Downing Street", new BigDecimal("0.7"));
 
@@ -83,8 +79,7 @@ class OsPlacesClientImplTest {
 
     @Test
     void find_best_match_allows_a_null_min_match() {
-        when(remoteCaller.match(eq("10 Downing Street"), isNull(), eq(API_KEY)))
-                .thenReturn(CompletableFuture.completedFuture(successResponse()));
+        when(remoteCaller.match(eq("10 Downing Street"), isNull(), eq(API_KEY))).thenReturn(successResponse());
 
         client.findBestMatch("10 Downing Street", null);
 
@@ -93,8 +88,7 @@ class OsPlacesClientImplTest {
 
     @Test
     void returns_empty_list_when_results_is_null() {
-        when(remoteCaller.postcode(eq("ZZ99 1AA"), eq(API_KEY)))
-                .thenReturn(CompletableFuture.completedFuture(new OsPlacesSearchResponse(null)));
+        when(remoteCaller.postcode(eq("ZZ99 1AA"), eq(API_KEY))).thenReturn(new OsPlacesSearchResponse(null));
 
         assertThat(client.searchByPostcode("ZZ99 1AA")).isEmpty();
     }
@@ -175,16 +169,8 @@ class OsPlacesClientImplTest {
         assertReason(DegradedReason.CIRCUIT_OPEN);
     }
 
-    @Test
-    void maps_time_limiter_timeout_to_upstream_timeout() {
-        stubFailure(new TimeoutException("TimeLimiter budget exceeded"));
-
-        assertReason(DegradedReason.UPSTREAM_TIMEOUT);
-    }
-
-    private void stubFailure(final Throwable cause) {
-        when(remoteCaller.postcode(eq("SW1A 1AA"), eq(API_KEY)))
-                .thenReturn(CompletableFuture.failedFuture(cause));
+    private void stubFailure(final RuntimeException cause) {
+        when(remoteCaller.postcode(eq("SW1A 1AA"), eq(API_KEY))).thenThrow(cause);
     }
 
     private void assertReason(final DegradedReason expected) {

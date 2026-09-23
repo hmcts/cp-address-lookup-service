@@ -42,11 +42,13 @@ import uk.gov.hmcts.cp.openapi.model.al.DegradedResponse;
  * SB-06: proves the {@code osPlaces} circuit breaker's actual open/half-open/closed behaviour end
  * to end - not covered by {@link uk.gov.hmcts.cp.addresslookup.client.OsPlacesClientImplTest}
  * (which only tests the exception-to-{@link DegradedReason} mapping against a mocked collaborator)
- * since the breaker only really exists once the {@code @CircuitBreaker}/{@code @TimeLimiter}
- * annotations are applied via Spring AOP in a real application context.
+ * since the breaker only really exists once the {@code @CircuitBreaker} annotation is applied via
+ * Spring AOP in a real application context. No {@code @TimeLimiter} (see
+ * {@link uk.gov.hmcts.cp.addresslookup.client.OsPlacesRemoteCaller}'s Javadoc for why) - the 10s
+ * budget is just the plain {@code os-places.client.read-timeout-ms} transport timeout.
  *
  * <p>Overrides the breaker's thresholds to small values via {@code @DynamicPropertySource} so this
- * trips/recovers quickly and deterministically, rather than needing 10 real failing calls.
+ * trips/recovers quickly and deterministically, rather than needing 15 real failing calls.
  * Stubs OS Places programmatically (not file-based fixtures like the other integration tests in
  * this package) since this test needs to change OS Places' behaviour mid-test - failing, then
  * recovering - which a static mapping file can't express.
@@ -75,7 +77,6 @@ class CircuitBreakerIntegrationTest {
         registry.add("resilience4j.circuitbreaker.instances.osPlaces.wait-duration-in-open-state", () -> "1s");
         registry.add("resilience4j.circuitbreaker.instances.osPlaces.permitted-number-of-calls-in-half-open-state",
                 () -> 1);
-        registry.add("resilience4j.timelimiter.instances.osPlaces.timeout-duration", () -> "500ms");
     }
 
     @Resource
@@ -133,26 +134,28 @@ class CircuitBreakerIntegrationTest {
     }
 
     @Test
-    void time_limiter_budget_is_actually_enforced_and_counts_toward_the_circuit_breaker() {
-        // timeout-duration overridden to 500ms above; OS Places stubbed to take 3s - comfortably
-        // longer than the TimeLimiter budget, comfortably shorter than the 12s transport-level
-        // read-timeout, so a fast return here can only be the TimeLimiter, not the socket timeout.
-        osPlaces.stubFor(get(urlPathEqualTo(OS_PLACES_PATH))
-                .willReturn(aResponse().withStatus(200).withFixedDelay(3_000)));
+    void a_slow_but_successful_response_is_not_cut_off_early() {
+        // Documents the actual Option 2 trade-off: with no @TimeLimiter, nothing races a separate
+        // deadline against the call - a response that's slow but still arrives within
+        // read-timeout-ms succeeds normally, waiting out the real delay in full, rather than being
+        // cut off early and deterministically the way a TimeLimiter budget would.
+        osPlaces.stubFor(get(urlPathEqualTo(OS_PLACES_PATH)).willReturn(aResponse()
+                .withStatus(200)
+                .withHeader("Content-Type", "application/json")
+                .withFixedDelay(1_000)
+                .withBody("""
+                        {"results":[{"DPA":{"UPRN":"10033544886","BUILDING_NUMBER":"10",
+                        "THOROUGHFARE_NAME":"Downing Street","POSTCODE":"SW1A 1AA"}}]}
+                        """)));
 
         final long start = System.currentTimeMillis();
-        final ResponseEntity<DegradedResponse> first = postcodeSearch(DegradedResponse.class);
+        final ResponseEntity<AddressSearchResponse> response = postcodeSearch(AddressSearchResponse.class);
         final long elapsedMs = System.currentTimeMillis() - start;
 
-        assertThat(elapsedMs).isLessThan(2_000L);
-        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-        assertThat(first.getBody().getReason()).isEqualTo(DegradedReason.UPSTREAM_TIMEOUT);
-
-        // minimum-number-of-calls=2: one more TimeLimiter timeout is enough to open the circuit -
-        // proves the TimeoutException it raises is actually recorded as a circuit-breaker failure,
-        // not silently dropped (record-exceptions lists java.util.concurrent.TimeoutException).
-        postcodeSearch(DegradedResponse.class);
-        assertThat(circuitBreakerRegistry.circuitBreaker("osPlaces").getState()).isEqualTo(CircuitBreaker.State.OPEN);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody().getResults()).hasSize(1);
+        assertThat(elapsedMs).isGreaterThanOrEqualTo(1_000L);
+        assertThat(circuitBreakerRegistry.circuitBreaker("osPlaces").getState()).isEqualTo(CircuitBreaker.State.CLOSED);
     }
 
     private <T> ResponseEntity<T> postcodeSearch(final Class<T> responseType) {

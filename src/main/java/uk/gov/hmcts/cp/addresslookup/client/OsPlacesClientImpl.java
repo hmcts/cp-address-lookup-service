@@ -4,9 +4,6 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 import org.springframework.http.HttpHeaders;
@@ -25,11 +22,10 @@ import uk.gov.hmcts.cp.addresslookup.exception.DegradedModeException;
 import uk.gov.hmcts.cp.openapi.model.al.DegradedReason;
 
 /**
- * Thin synchronous adapter over {@link OsPlacesRemoteCaller} - joins its
- * {@code CompletableFuture}s and maps whatever failed the call (an OS Places HTTP error, a
- * Resilience4j {@code @TimeLimiter} timeout, or an open {@code @CircuitBreaker}) to the same
- * {@link DegradedModeException} contract, so nothing above this class (the service layer,
- * controllers, {@code @Cacheable}) needs to know SB-06's resilience layer exists at all.
+ * Thin synchronous adapter over {@link OsPlacesRemoteCaller} - maps whatever failed the call (an
+ * OS Places HTTP error, or an open {@code @CircuitBreaker}) to the same {@link DegradedModeException}
+ * contract, so nothing above this class (the service layer, controllers, {@code @Cacheable})
+ * needs to know Resilience4j exists at all.
  */
 @Slf4j
 @Component
@@ -58,12 +54,16 @@ public class OsPlacesClientImpl implements OsPlacesClient {
         return execute(() -> remoteCaller.match(address, minMatch, apiKey));
     }
 
-    private List<Map<String, Object>> execute(final Supplier<CompletableFuture<OsPlacesSearchResponse>> call) {
+    // Deliberately broad: mapToDegraded's whole job is to classify every kind of RuntimeException
+    // this call can throw (OS Places HTTP errors, connection failures, an open circuit breaker)
+    // into the right DegradedReason - narrowing the catch type here would defeat that.
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private List<Map<String, Object>> execute(final Supplier<OsPlacesSearchResponse> call) {
         final OsPlacesSearchResponse response;
         try {
-            response = call.get().join();
-        } catch (final CompletionException ex) {
-            throw mapToDegraded(ex.getCause() != null ? ex.getCause() : ex);
+            response = call.get();
+        } catch (final RuntimeException ex) {
+            throw mapToDegraded(ex);
         }
         return toResults(response);
     }
@@ -76,7 +76,7 @@ public class OsPlacesClientImpl implements OsPlacesClient {
                 .toList();
     }
 
-    private static DegradedModeException mapToDegraded(final Throwable cause) {
+    private static DegradedModeException mapToDegraded(final RuntimeException cause) {
         return switch (cause) {
             case HttpClientErrorException.TooManyRequests ex ->
                     degraded(DegradedReason.UPSTREAM_RATE_LIMIT, retryAfterSeconds(ex), "OS Places rate limit exceeded", ex);
@@ -90,20 +90,15 @@ public class OsPlacesClientImpl implements OsPlacesClient {
                     degraded(DegradedReason.UPSTREAM_TIMEOUT, null, "OS Places returned a server error", ex);
             case HttpClientErrorException ex ->
                     degraded(DegradedReason.UPSTREAM_CONTRACT, null, "OS Places rejected the request unexpectedly", ex);
-            // SB-06: the circuit breaker refused the call outright - instant, no OS Places call made.
+            // The circuit breaker refused the call outright - instant, no OS Places call made.
             case CallNotPermittedException ex ->
                     degraded(DegradedReason.CIRCUIT_OPEN, null, "OS Places circuit breaker is open", ex);
-            // SB-06: the TimeLimiter's 10s budget was exceeded.
-            case TimeoutException ex ->
-                    degraded(DegradedReason.UPSTREAM_TIMEOUT, null, "OS Places did not respond in time", ex);
             case ResourceAccessException ex ->
                     degraded(DegradedReason.UPSTREAM_TIMEOUT, null, "OS Places did not respond in time", ex);
             case RestClientException ex ->
                     degraded(DegradedReason.UPSTREAM_CONTRACT, null, "OS Places response could not be read", ex);
-            case Exception ex ->
-                    degraded(DegradedReason.UPSTREAM_CONTRACT, null, "OS Places call failed unexpectedly", ex);
             default ->
-                    degraded(DegradedReason.UPSTREAM_CONTRACT, null, "OS Places call failed unexpectedly", new RuntimeException(cause));
+                    degraded(DegradedReason.UPSTREAM_CONTRACT, null, "OS Places call failed unexpectedly", cause);
         };
     }
 

@@ -14,21 +14,27 @@ os-places:
     base-url: ${OS_PLACES_BASE_URL:https://api.os.uk}
     api-key: ${OS_PLACES_API_KEY:}
     connect-timeout-ms: ${OS_PLACES_CONNECT_TIMEOUT_MS:3000}
-    # SB-06: a slightly larger transport-level safety net below resilience4j's TimeLimiter, which
-    # is now the authoritative 10s budget (see resilience4j.timelimiter below) - not the enforced
-    # budget itself.
-    read-timeout-ms: ${OS_PLACES_READ_TIMEOUT_MS:12000}
+    # SB-06: no Resilience4j TimeLimiter (it requires a CompletionStage-returning method, which
+    # would need an async/executor layer purely to satisfy that) - this plain transport-level
+    # timeout is the actual 10s budget. Trade-off: a genuinely slow-but-alive OS Places response
+    # is no longer cut off early and deterministically at 10s - every caller waits out however
+    # long OS Places actually takes, up to this timeout. Repeated hard failures (5xx, connection
+    # failures) still trip the circuit breaker below exactly as before.
+    read-timeout-ms: ${OS_PLACES_READ_TIMEOUT_MS:10000}
     # true only on OS-backed tiers (SIT/PRP/PRD) - set via Helm values per environment. Fixture
     # tiers (STE/DEV/NFT) leave this false, since they have no OS Places key at all.
     key-required: ${OS_PLACES_KEY_REQUIRED:false}
 
-# SB-06: TimeLimiter (10s budget) + CircuitBreaker on the OS Places call (proven need: OS outage
-# 2026-06-05/06). The breaker only records availability failures (timeouts, connection failures,
-# 5xx) - not upstream-rate-limit (429) or upstream-auth (401/403), since neither is a sign OS
-# Places itself is down, and opening the circuit wouldn't help either case (every future call
-# would fail identically regardless of circuit state). Matches the contract's own grouping: its
-# OpenAPI examples pair upstream-timeout with circuit-open on the same endpoints, while
-# upstream-rate-limit has its own separate example.
+# SB-06: CircuitBreaker on the OS Places call (proven need: OS outage 2026-06-05/06) - open circuit
+# answers degraded instantly, no OS Places call attempted. Only records availability failures
+# (timeouts, connection failures, 5xx) - not upstream-rate-limit (429) or upstream-auth (401/403),
+# since neither is a sign OS Places itself is down, and opening the circuit wouldn't help either
+# case (every future call would fail identically regardless of circuit state). Matches the
+# contract's own grouping: its OpenAPI examples pair upstream-timeout with circuit-open on the
+# same endpoints, while upstream-rate-limit has its own separate example.
+#
+# No Resilience4j TimeLimiter here (see os-places.client.read-timeout-ms above for why) - the
+# transport-level read-timeout is what actually bounds a single call now.
 #
 # record-exceptions is a strict allowlist - anything not listed here (HttpClientErrorException for
 # 401/403/429, the generic RestClientException for malformed JSON, CallNotPermittedException) is
@@ -38,11 +44,6 @@ os-places:
 # base, so an "ignore RestClientException" entry would - and during development, did - silently
 # swallow every listed record-exceptions entry too, since ignore wins on overlap.
 resilience4j:
-  timelimiter:
-    instances:
-      osPlaces:
-        timeout-duration: ${OS_PLACES_TIMELIMITER_TIMEOUT:10s}
-        cancel-running-future: true
   circuitbreaker:
     instances:
       osPlaces:
@@ -53,9 +54,12 @@ resilience4j:
         wait-duration-in-open-state: ${OS_PLACES_CB_WAIT_OPEN:30s}
         permitted-number-of-calls-in-half-open-state: ${OS_PLACES_CB_HALF_OPEN_CALLS:3}
         automatic-transition-from-open-to-half-open-enabled: true
+        # Without this, management.health.circuitbreakers.enabled below turns on the health
+        # indicator feature itself, but this specific instance still won't appear in it - its
+        # default is false, and the indicator reports UNKNOWN with no details for zero
+        # opted-in instances rather than reflecting this breaker's actual state.
         register-health-indicator: true
         record-exceptions:
-          - java.util.concurrent.TimeoutException
           - org.springframework.web.client.ResourceAccessException
           - org.springframework.web.client.HttpServerErrorException
 
