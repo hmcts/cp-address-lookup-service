@@ -18,9 +18,6 @@ public record OsPlacesClientProperties(
 ) {
 
     private static final int DEFAULT_CONNECT_TIMEOUT_MS = 3000;
-    // SB-06: no Resilience4j TimeLimiter (it requires a CompletionStage-returning method, which
-    // would need an async/executor layer purely to satisfy that) - this plain transport-level
-    // timeout is the actual 10s budget.
     private static final int DEFAULT_READ_TIMEOUT_MS = 10_000;
 
     public OsPlacesClientProperties {
