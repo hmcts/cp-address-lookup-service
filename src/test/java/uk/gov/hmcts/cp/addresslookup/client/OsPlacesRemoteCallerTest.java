@@ -41,7 +41,8 @@ class OsPlacesRemoteCallerTest {
     private final RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
     private final OsPlacesClientProperties properties =
-            new OsPlacesClientProperties(BASE_URL, API_KEY, 3000, 10_000, false, null, null);
+            new OsPlacesClientProperties(BASE_URL, API_KEY, 3000, 10_000, false,
+                    "/search/places/v1/postcode", "/search/places/v1/find");
     // The @CircuitBreaker annotation is inert on a plain `new` instance anyway (it only applies
     // via Spring AOP proxying), so this is a genuinely synchronous, direct call in this test.
     private final OsPlacesRemoteCaller remoteCaller = new OsPlacesRemoteCaller(builder.build(), properties);

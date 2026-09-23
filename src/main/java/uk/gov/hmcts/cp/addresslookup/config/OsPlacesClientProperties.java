@@ -21,21 +21,16 @@ public record OsPlacesClientProperties(
 
     private static final int DEFAULT_CONNECT_TIMEOUT_MS = 3000;
     private static final int DEFAULT_READ_TIMEOUT_MS = 10_000;
-    private static final String DEFAULT_POSTCODE_PATH = "/search/places/v1/postcode";
-    private static final String DEFAULT_FIND_PATH = "/search/places/v1/find";
 
+    // No Java-side default for postcodePath/findPath (Sonar: URIs should not be hardcoded) -
+    // application.yaml's own ${...:default} syntax is the single source of truth for those
+    // literals; callers that bypass Spring binding (tests) must pass explicit values.
     public OsPlacesClientProperties {
         if (connectTimeoutMs <= 0) {
             connectTimeoutMs = DEFAULT_CONNECT_TIMEOUT_MS;
         }
         if (readTimeoutMs <= 0) {
             readTimeoutMs = DEFAULT_READ_TIMEOUT_MS;
-        }
-        if (postcodePath == null || postcodePath.isBlank()) {
-            postcodePath = DEFAULT_POSTCODE_PATH;
-        }
-        if (findPath == null || findPath.isBlank()) {
-            findPath = DEFAULT_FIND_PATH;
         }
     }
 

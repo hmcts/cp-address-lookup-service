@@ -42,7 +42,8 @@ class OsPlacesClientImplTest {
 
     private final OsPlacesRemoteCaller remoteCaller = mock(OsPlacesRemoteCaller.class);
     private final OsPlacesClientProperties properties =
-            new OsPlacesClientProperties("https://os-places.test", API_KEY, 3000, 10_000, false, null, null);
+            new OsPlacesClientProperties("https://os-places.test", API_KEY, 3000, 10_000, false,
+                    "/search/places/v1/postcode", "/search/places/v1/find");
     private final OsPlacesClientImpl client = new OsPlacesClientImpl(remoteCaller, properties);
 
     @Test
