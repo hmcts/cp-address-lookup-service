@@ -4,7 +4,8 @@
     "urlPath": "/search/places/v1/find",
     "queryParameters": {
       "query": { "equalTo": "10 Downing Street" },
-      "key": { "equalTo": "test-api-key" }
+      "key": { "equalTo": "test-api-key" },
+      "maxresults": { "absent": true }
     }
   },
   "response": {
