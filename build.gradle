@@ -120,4 +120,17 @@ dependencies {
   // Security: pin transitive tomcat-embed-core to patched version (CVE-2026-41293, -43512, et al.)
   // Brought in transitively via spring-boot-starter-web; >=11.0.0-M1,<11.0.22 are vulnerable
   implementation 'org.apache.tomcat.embed:tomcat-embed-core:11.0.26'
+
+  // SB-06: TimeLimiter (10s budget) + CircuitBreaker on OsPlacesClient. The Spring Boot 4-targeted
+  // module - not resilience4j-spring-boot3, which is built against Boot 3's spring-boot-autoconfigure
+  // and not published past 2.3.0. spring-boot-autoconfigure/spring-core versions it depends on are
+  // managed to this project's own Spring Boot 4.1.1 by the Spring Boot Gradle plugin as usual.
+  implementation 'io.github.resilience4j:resilience4j-spring-boot4:2.4.0'
+  // resilience4j's CircuitBreakerAspect/TimeLimiterAspect are @Aspect-annotated beans - plain
+  // spring-aop (already pulled in transitively for @Cacheable) isn't enough for Spring's
+  // annotation-config auto-proxy creator to recognise them; needs aspectjweaver too. Depended on
+  // directly (not via spring-boot-starter-aop, which Spring Boot 4's dependency-management BOM
+  // doesn't manage past the 4.0.0-M2 milestone - not published as a stable Boot 4 starter).
+  // Without this, @CircuitBreaker/@TimeLimiter are silent no-ops.
+  implementation 'org.aspectj:aspectjweaver'
 }

@@ -1,21 +1,22 @@
 package uk.gov.hmcts.cp.addresslookup.client;
 
 import java.math.BigDecimal;
-import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.util.UriBuilder;
 
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import lombok.extern.slf4j.Slf4j;
 import uk.gov.hmcts.cp.addresslookup.client.dto.OsPlacesResult;
 import uk.gov.hmcts.cp.addresslookup.client.dto.OsPlacesSearchResponse;
@@ -23,83 +24,87 @@ import uk.gov.hmcts.cp.addresslookup.config.OsPlacesClientProperties;
 import uk.gov.hmcts.cp.addresslookup.exception.DegradedModeException;
 import uk.gov.hmcts.cp.openapi.model.al.DegradedReason;
 
+/**
+ * Thin synchronous adapter over {@link OsPlacesRemoteCaller} - joins its
+ * {@code CompletableFuture}s and maps whatever failed the call (an OS Places HTTP error, a
+ * Resilience4j {@code @TimeLimiter} timeout, or an open {@code @CircuitBreaker}) to the same
+ * {@link DegradedModeException} contract, so nothing above this class (the service layer,
+ * controllers, {@code @Cacheable}) needs to know SB-06's resilience layer exists at all.
+ */
 @Slf4j
 @Component
 public class OsPlacesClientImpl implements OsPlacesClient {
 
-    private static final String POSTCODE_PATH = "/search/places/v1/postcode";
-    private static final String FIND_PATH = "/search/places/v1/find";
-
-    private final RestClient restClient;
+    private final OsPlacesRemoteCaller remoteCaller;
     private final String apiKey;
 
-    public OsPlacesClientImpl(final RestClient osPlacesRestClient, final OsPlacesClientProperties properties) {
-        this.restClient = Objects.requireNonNull(osPlacesRestClient, "osPlacesRestClient");
+    public OsPlacesClientImpl(final OsPlacesRemoteCaller remoteCaller, final OsPlacesClientProperties properties) {
+        this.remoteCaller = Objects.requireNonNull(remoteCaller, "remoteCaller");
         this.apiKey = Objects.requireNonNull(properties, "properties").apiKey();
     }
 
     @Override
     public List<Map<String, Object>> searchByPostcode(final String postcode) {
-        return executeSearch(uriBuilder -> uriBuilder.path(POSTCODE_PATH)
-                .queryParam("postcode", postcode)
-                .queryParam("key", apiKey)
-                .build());
+        return execute(() -> remoteCaller.postcode(postcode, apiKey));
     }
 
     @Override
     public List<Map<String, Object>> searchByAddress(final String address) {
-        return executeSearch(uriBuilder -> uriBuilder.path(FIND_PATH)
-                .queryParam("query", address)
-                .queryParam("key", apiKey)
-                .build());
+        return execute(() -> remoteCaller.find(address, apiKey));
     }
 
     @Override
     public List<Map<String, Object>> findBestMatch(final String address, final BigDecimal minMatch) {
-        return executeSearch(uriBuilder -> {
-            uriBuilder.path(FIND_PATH)
-                    .queryParam("query", address)
-                    .queryParam("maxresults", 1);
-            if (minMatch != null) {
-                uriBuilder.queryParam("minmatch", minMatch);
-            }
-            return uriBuilder.queryParam("key", apiKey).build();
-        });
+        return execute(() -> remoteCaller.match(address, minMatch, apiKey));
     }
 
-    private List<Map<String, Object>> executeSearch(final Function<UriBuilder, URI> uriCustomizer) {
+    private List<Map<String, Object>> execute(final Supplier<CompletableFuture<OsPlacesSearchResponse>> call) {
         final OsPlacesSearchResponse response;
         try {
-            response = restClient.get()
-                    .uri(uriCustomizer)
-                    .retrieve()
-                    .body(OsPlacesSearchResponse.class);
-        } catch (final HttpClientErrorException.TooManyRequests ex) {
-            throw degraded(DegradedReason.UPSTREAM_RATE_LIMIT, retryAfterSeconds(ex), "OS Places rate limit exceeded", ex);
-        } catch (final HttpClientErrorException.Unauthorized | HttpClientErrorException.Forbidden ex) {
-            throw degraded(DegradedReason.UPSTREAM_AUTH, null, "OS Places rejected the configured API key", ex);
-        } catch (final HttpServerErrorException.InternalServerError ex) {
-            throw degraded(DegradedReason.UPSTREAM_SERVER_ERROR, null, "OS Places returned a 500 Internal Server Error", ex);
-        } catch (final HttpServerErrorException ex) {
-            throw degraded(DegradedReason.UPSTREAM_TIMEOUT, null, "OS Places returned a server error", ex);
-        } catch (final HttpClientErrorException ex) {
-            throw degraded(DegradedReason.UPSTREAM_CONTRACT, null, "OS Places rejected the request unexpectedly", ex);
-        } catch (final ResourceAccessException ex) {
-            throw degraded(DegradedReason.UPSTREAM_TIMEOUT, null, "OS Places did not respond in time", ex);
-        } catch (final RestClientException ex) {
-            throw degraded(DegradedReason.UPSTREAM_CONTRACT, null, "OS Places response could not be read", ex);
+            response = call.get().join();
+        } catch (final CompletionException ex) {
+            throw mapToDegraded(ex.getCause() != null ? ex.getCause() : ex);
         }
+        return toResults(response);
+    }
 
-        final List<Map<String, Object>> results;
-        if (response == null || response.results() == null) {
-            results = List.of();
-        } else {
-            results = response.results().stream()
-                    .map(OsPlacesResult::dpa)
-                    .filter(Objects::nonNull)
-                    .toList();
-        }
-        return results;
+    private static List<Map<String, Object>> toResults(final OsPlacesSearchResponse response) {
+        final List<OsPlacesResult> results = response == null ? null : response.results();
+        return results == null ? List.of() : results.stream()
+                .map(OsPlacesResult::dpa)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private static DegradedModeException mapToDegraded(final Throwable cause) {
+        return switch (cause) {
+            case HttpClientErrorException.TooManyRequests ex ->
+                    degraded(DegradedReason.UPSTREAM_RATE_LIMIT, retryAfterSeconds(ex), "OS Places rate limit exceeded", ex);
+            case HttpClientErrorException.Unauthorized ex ->
+                    degraded(DegradedReason.UPSTREAM_AUTH, null, "OS Places rejected the configured API key", ex);
+            case HttpClientErrorException.Forbidden ex ->
+                    degraded(DegradedReason.UPSTREAM_AUTH, null, "OS Places rejected the configured API key", ex);
+            case HttpServerErrorException.InternalServerError ex ->
+                    degraded(DegradedReason.UPSTREAM_SERVER_ERROR, null, "OS Places returned a 500 Internal Server Error", ex);
+            case HttpServerErrorException ex ->
+                    degraded(DegradedReason.UPSTREAM_TIMEOUT, null, "OS Places returned a server error", ex);
+            case HttpClientErrorException ex ->
+                    degraded(DegradedReason.UPSTREAM_CONTRACT, null, "OS Places rejected the request unexpectedly", ex);
+            // SB-06: the circuit breaker refused the call outright - instant, no OS Places call made.
+            case CallNotPermittedException ex ->
+                    degraded(DegradedReason.CIRCUIT_OPEN, null, "OS Places circuit breaker is open", ex);
+            // SB-06: the TimeLimiter's 10s budget was exceeded.
+            case TimeoutException ex ->
+                    degraded(DegradedReason.UPSTREAM_TIMEOUT, null, "OS Places did not respond in time", ex);
+            case ResourceAccessException ex ->
+                    degraded(DegradedReason.UPSTREAM_TIMEOUT, null, "OS Places did not respond in time", ex);
+            case RestClientException ex ->
+                    degraded(DegradedReason.UPSTREAM_CONTRACT, null, "OS Places response could not be read", ex);
+            case Exception ex ->
+                    degraded(DegradedReason.UPSTREAM_CONTRACT, null, "OS Places call failed unexpectedly", ex);
+            default ->
+                    degraded(DegradedReason.UPSTREAM_CONTRACT, null, "OS Places call failed unexpectedly", new RuntimeException(cause));
+        };
     }
 
     private static Integer retryAfterSeconds(final HttpClientErrorException ex) {
@@ -117,7 +122,7 @@ public class OsPlacesClientImpl implements OsPlacesClient {
     }
 
     private static DegradedModeException degraded(final DegradedReason reason, final Integer retryAfterSeconds,
-            final String message, final Exception cause) {
+            final String message, final Throwable cause) {
         log.warn("OS Places call degraded: reason={} message={}", reason, message, cause);
         return new DegradedModeException(reason, retryAfterSeconds, message, cause);
     }

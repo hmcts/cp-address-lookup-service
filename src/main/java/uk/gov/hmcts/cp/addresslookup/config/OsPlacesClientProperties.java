@@ -18,7 +18,10 @@ public record OsPlacesClientProperties(
 ) {
 
     private static final int DEFAULT_CONNECT_TIMEOUT_MS = 3000;
-    private static final int DEFAULT_READ_TIMEOUT_MS = 10_000;
+    // SB-06: Resilience4j's TimeLimiter is now the authoritative 10s budget (see
+    // resilience4j.timelimiter.instances.osPlaces in application.yaml) - this stays a slightly
+    // larger transport-level safety net underneath it, not the enforced budget itself.
+    private static final int DEFAULT_READ_TIMEOUT_MS = 12_000;
 
     public OsPlacesClientProperties {
         if (connectTimeoutMs <= 0) {

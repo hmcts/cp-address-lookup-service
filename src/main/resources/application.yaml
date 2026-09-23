@@ -14,10 +14,49 @@ os-places:
     base-url: ${OS_PLACES_BASE_URL:https://api.os.uk}
     api-key: ${OS_PLACES_API_KEY:}
     connect-timeout-ms: ${OS_PLACES_CONNECT_TIMEOUT_MS:3000}
-    read-timeout-ms: ${OS_PLACES_READ_TIMEOUT_MS:10000}
+    # SB-06: a slightly larger transport-level safety net below resilience4j's TimeLimiter, which
+    # is now the authoritative 10s budget (see resilience4j.timelimiter below) - not the enforced
+    # budget itself.
+    read-timeout-ms: ${OS_PLACES_READ_TIMEOUT_MS:12000}
     # true only on OS-backed tiers (SIT/PRP/PRD) - set via Helm values per environment. Fixture
     # tiers (STE/DEV/NFT) leave this false, since they have no OS Places key at all.
     key-required: ${OS_PLACES_KEY_REQUIRED:false}
+
+# SB-06: TimeLimiter (10s budget) + CircuitBreaker on the OS Places call (proven need: OS outage
+# 2026-06-05/06). The breaker only records availability failures (timeouts, connection failures,
+# 5xx) - not upstream-rate-limit (429) or upstream-auth (401/403), since neither is a sign OS
+# Places itself is down, and opening the circuit wouldn't help either case (every future call
+# would fail identically regardless of circuit state). Matches the contract's own grouping: its
+# OpenAPI examples pair upstream-timeout with circuit-open on the same endpoints, while
+# upstream-rate-limit has its own separate example.
+#
+# record-exceptions is a strict allowlist - anything not listed here (HttpClientErrorException for
+# 401/403/429, the generic RestClientException for malformed JSON, CallNotPermittedException) is
+# simply never counted as a circuit-breaker failure, so no ignore-exceptions entry is needed (or
+# safe to add): Spring's RestClientException hierarchy has HttpServerErrorException,
+# HttpClientErrorException AND ResourceAccessException all extending the same RestClientException
+# base, so an "ignore RestClientException" entry would - and during development, did - silently
+# swallow every listed record-exceptions entry too, since ignore wins on overlap.
+resilience4j:
+  timelimiter:
+    instances:
+      osPlaces:
+        timeout-duration: ${OS_PLACES_TIMELIMITER_TIMEOUT:10s}
+        cancel-running-future: true
+  circuitbreaker:
+    instances:
+      osPlaces:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: ${OS_PLACES_CB_WINDOW_SIZE:20}
+        minimum-number-of-calls: ${OS_PLACES_CB_MIN_CALLS:15}
+        failure-rate-threshold: ${OS_PLACES_CB_FAILURE_RATE:50}
+        wait-duration-in-open-state: ${OS_PLACES_CB_WAIT_OPEN:30s}
+        permitted-number-of-calls-in-half-open-state: ${OS_PLACES_CB_HALF_OPEN_CALLS:3}
+        automatic-transition-from-open-to-half-open-enabled: true
+        record-exceptions:
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
 
 address-lookup:
   cache:
@@ -44,6 +83,9 @@ management:
       group:
         readiness:
           include: readinessState,osPlacesKey
+  health:
+    circuitbreakers:
+      enabled: true
   otlp:
     metrics:
       export:
