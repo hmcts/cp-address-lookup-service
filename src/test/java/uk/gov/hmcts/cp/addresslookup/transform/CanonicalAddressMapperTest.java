@@ -212,6 +212,25 @@ class CanonicalAddressMapperTest {
     }
 
     @Test
+    void falls_back_to_the_raw_address_field_when_no_structured_line_is_available() {
+        // never drop a record just because none of the structured fields this
+        // mapper knows about are populated. OS Places' own ADDRESS field (a concatenated full
+        // address) is mandatory on every DPA record, so it's used as the line1 fallback instead of
+        // throwing - the record still surfaces, and its differently-formatted line1 is itself a
+        // signal that the structured mapping missed this record shape.
+        final Map<String, Object> dpa = new HashMap<>();
+        dpa.put("UPRN", "10033544886");
+        dpa.put("POSTCODE", "SW1A 1AA");
+        dpa.put("ADDRESS", "10, DOWNING STREET, LONDON, SW1A 1AA");
+
+        final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
+
+        assertThat(candidate.getLine1()).isEqualTo("10, DOWNING STREET, LONDON, SW1A 1AA");
+        assertThat(candidate.getLine2()).isNull();
+        assertThat(candidate.getLine3()).isNull();
+    }
+
+    @Test
     void maps_a_po_box_record_using_po_box_number_as_line1() {
         // Real OS Places record shape (CLASSIFICATION_CODE OR03, "PO Box"): none of
         // organisation/sub-building/building/number+street/dependent-locality are ever present -
