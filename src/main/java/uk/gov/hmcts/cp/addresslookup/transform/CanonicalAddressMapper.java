@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import lombok.extern.slf4j.Slf4j;
 import uk.gov.hmcts.cp.addresslookup.exception.DegradedModeException;
 import uk.gov.hmcts.cp.openapi.model.al.AddressCandidate;
 import uk.gov.hmcts.cp.openapi.model.al.DegradedReason;
@@ -24,7 +25,16 @@ import uk.gov.hmcts.cp.openapi.model.al.DegradedReason;
  * records only via ORGANISATION_NAME) yields line1="BUCKINGHAM PALACE". A PO Box record (OS
  * Places classification OR03) carries none of those five fields at all - only PO_BOX_NUMBER - so
  * it's checked last, as the final fallback, formatted as "PO BOX &lt;number&gt;".
+ *
+ * <p>line1 is required and non-blank per the API contract, so a record shape this mapper doesn't
+ * recognise at all (none of the above) still can't come back empty: OS Places' own {@code ADDRESS}
+ * field (a concatenated full address) is mandatory on every DPA record, so it's used as a final
+ * line1 fallback - logged, since it signals a record shape the structured mapping above should
+ * probably learn to handle - rather than dropping the record (see {@code DegradedModeException}
+ * below for the one case even that can't cover: {@code ADDRESS} itself missing, which OS Places
+ * should never actually send).
  */
+@Slf4j
 public final class CanonicalAddressMapper {
 
     private static final int MAX_DYNAMIC_LINES = 3;
@@ -41,6 +51,7 @@ public final class CanonicalAddressMapper {
     private static final String DEPENDENT_LOCALITY = "DEPENDENT_LOCALITY";
     private static final String PO_BOX_NUMBER = "PO_BOX_NUMBER";
     private static final String PO_BOX_PREFIX = "PO BOX ";
+    private static final String ADDRESS = "ADDRESS";
 
     private CanonicalAddressMapper() {
     }
@@ -55,8 +66,14 @@ public final class CanonicalAddressMapper {
 
         final List<String> lines = addressLines(dpa);
         if (lines.isEmpty()) {
-            throw new DegradedModeException(DegradedReason.UPSTREAM_CONTRACT, null,
-                    "OS Places DPA record has no usable address lines");
+            final String rawAddress = fieldValue(dpa, ADDRESS);
+            if (rawAddress == null) {
+                throw new DegradedModeException(DegradedReason.UPSTREAM_CONTRACT, null,
+                        "OS Places DPA record has no usable address lines");
+            }
+            log.warn("OS Places DPA record (UPRN={}) had no recognised structured address fields; "
+                    + "falling back to its raw ADDRESS field for line1", uprn);
+            lines.add(rawAddress);
         }
 
         final AddressCandidate candidate = new AddressCandidate()
