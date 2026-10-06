@@ -72,6 +72,8 @@ class CircuitBreakerIntegrationTest {
     static void osPlacesClientProperties(final DynamicPropertyRegistry registry) {
         registry.add("os-places.client.base-url", osPlaces::baseUrl);
         registry.add("os-places.client.api-key", () -> "test-api-key");
+        // Breaker defaults to DISABLED - this test needs it live.
+        registry.add("OS_PLACES_CB_INITIAL_STATE", () -> "CLOSED");
         registry.add("resilience4j.circuitbreaker.instances.osPlaces.sliding-window-size", () -> 2);
         registry.add("resilience4j.circuitbreaker.instances.osPlaces.minimum-number-of-calls", () -> 2);
         registry.add("resilience4j.circuitbreaker.instances.osPlaces.wait-duration-in-open-state", () -> "1s");

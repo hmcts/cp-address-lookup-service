@@ -49,6 +49,8 @@ resilience4j:
   circuitbreaker:
     instances:
       osPlaces:
+        # DISABLED (default, never opens) or CLOSED (live breaker) - set per stack via Flux overlay.
+        initial-state: ${OS_PLACES_CB_INITIAL_STATE:DISABLED}
         sliding-window-type: COUNT_BASED
         sliding-window-size: ${OS_PLACES_CB_WINDOW_SIZE:20}
         minimum-number-of-calls: ${OS_PLACES_CB_MIN_CALLS:15}
