@@ -59,6 +59,58 @@ class AddressSearchServiceImplTest {
     }
 
     @Test
+    void skips_an_unmappable_record_and_still_returns_the_others() {
+        // Real scenario: OS Places' postcode endpoint does a broad prefix match on an incomplete
+        // postcode like "NW1", and the result set can include record shapes CanonicalAddressMapper
+        // doesn't recognise (e.g. PO Box entries with none of the fields it checks) - one such
+        // record must not take out the whole response.
+        final Map<String, Object> valid = new HashMap<>();
+        valid.put("UPRN", "10033544886");
+        valid.put("BUILDING_NUMBER", "10");
+        valid.put("THOROUGHFARE_NAME", "Downing Street");
+        valid.put("POSTCODE", "SW1A 1AA");
+        final Map<String, Object> unmappable = new HashMap<>();
+        unmappable.put("UPRN", "10015216875");
+        unmappable.put("POSTCODE", "NW1W 9PP");
+        when(osPlacesClient.searchByPostcode("NW1")).thenReturn(List.of(valid, unmappable));
+
+        final AddressSearchResponse response = service.searchByPostcode("NW1", false);
+
+        assertThat(response.getResults()).hasSize(1);
+        assertThat(response.getResults().get(0).getLine1()).isEqualTo("10 Downing Street");
+    }
+
+    @Test
+    void maps_a_po_box_record_instead_of_skipping_it() {
+        // A PO Box DPA record only carries PO_BOX_NUMBER (no organisation/building/street fields)
+        // but CanonicalAddressMapper now maps it via PO_BOX_NUMBER, so it comes back as a normal
+        // result through the service layer - not one of the skipped/unmappable records.
+        final Map<String, Object> poBox = new HashMap<>();
+        poBox.put("UPRN", "10015216875");
+        poBox.put("PO_BOX_NUMBER", "64233");
+        poBox.put("POST_TOWN", "LONDON");
+        poBox.put("POSTCODE", "NW1W 9PP");
+        when(osPlacesClient.searchByPostcode("NW1")).thenReturn(List.of(poBox));
+
+        final AddressSearchResponse response = service.searchByPostcode("NW1", false);
+
+        assertThat(response.getResults()).hasSize(1);
+        assertThat(response.getResults().get(0).getLine1()).isEqualTo("PO BOX 64233");
+    }
+
+    @Test
+    void returns_empty_results_when_every_record_is_unmappable() {
+        final Map<String, Object> unmappable = new HashMap<>();
+        unmappable.put("UPRN", "10015216875");
+        unmappable.put("POSTCODE", "NW1W 9PP");
+        when(osPlacesClient.searchByPostcode("NW1")).thenReturn(List.of(unmappable));
+
+        final AddressSearchResponse response = service.searchByPostcode("NW1", false);
+
+        assertThat(response.getResults()).isEmpty();
+    }
+
+    @Test
     void trims_the_postcode_before_calling_the_client() {
         when(osPlacesClient.searchByPostcode(eq("SW1A 1AA"))).thenReturn(List.of());
 

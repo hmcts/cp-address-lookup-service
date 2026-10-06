@@ -212,6 +212,25 @@ class CanonicalAddressMapperTest {
     }
 
     @Test
+    void maps_a_po_box_record_using_po_box_number_as_line1() {
+        // Real OS Places record shape (CLASSIFICATION_CODE OR03, "PO Box"): none of
+        // organisation/sub-building/building/number+street/dependent-locality are ever present -
+        // only PO_BOX_NUMBER, POST_TOWN and POSTCODE. Found via a real "NW1" postcode search that
+        // was failing the whole batch (see AddressSearchServiceImplTest for the batch-level fix).
+        final Map<String, Object> dpa = new HashMap<>();
+        dpa.put("UPRN", "10015216875");
+        dpa.put("PO_BOX_NUMBER", "64233");
+        dpa.put("POST_TOWN", "LONDON");
+        dpa.put("POSTCODE", "NW1W 9PP");
+
+        final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
+
+        assertThat(candidate.getLine1()).isEqualTo("PO BOX 64233");
+        assertThat(candidate.getLine2()).isNull();
+        assertThat(candidate.getLine4()).isEqualTo("LONDON");
+    }
+
+    @Test
     void maps_the_match_score_when_present() {
         final Map<String, Object> dpa = new HashMap<>();
         dpa.put("UPRN", "10033544886");
