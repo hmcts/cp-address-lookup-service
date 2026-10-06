@@ -43,6 +43,7 @@ import jakarta.annotation.Resource;
         "OS_PLACES_CB_MIN_CALLS=2"
 })
 @Import(OsPlacesRemoteCallerCircuitBreakerTest.MockOsPlacesConfig.class)
+@SuppressWarnings("java:S2187") // tests live in the @Nested classes, which Sonar doesn't count
 class OsPlacesRemoteCallerCircuitBreakerTest {
 
     private static final String BASE_URL = "https://os-places.test";
