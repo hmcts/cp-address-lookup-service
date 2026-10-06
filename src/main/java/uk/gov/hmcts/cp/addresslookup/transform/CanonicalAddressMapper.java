@@ -21,7 +21,9 @@ import uk.gov.hmcts.cp.openapi.model.al.DegradedReason;
  * this yields a single line1="10 Downing Street" (building number and street combine onto one
  * line; BUILDING_NAME, a named building as distinct from a numbered one, is always its own line).
  * A named premise with no street-level fields at all (e.g. Buckingham Palace, which OS Places
- * records only via ORGANISATION_NAME) yields line1="BUCKINGHAM PALACE".
+ * records only via ORGANISATION_NAME) yields line1="BUCKINGHAM PALACE". A PO Box record (OS
+ * Places classification OR03) carries none of those five fields at all - only PO_BOX_NUMBER - so
+ * it's checked last, as the final fallback, formatted as "PO BOX &lt;number&gt;".
  */
 public final class CanonicalAddressMapper {
 
@@ -37,6 +39,8 @@ public final class CanonicalAddressMapper {
     private static final String BUILDING_NUMBER = "BUILDING_NUMBER";
     private static final String THOROUGHFARE_NAME = "THOROUGHFARE_NAME";
     private static final String DEPENDENT_LOCALITY = "DEPENDENT_LOCALITY";
+    private static final String PO_BOX_NUMBER = "PO_BOX_NUMBER";
+    private static final String PO_BOX_PREFIX = "PO BOX ";
 
     private CanonicalAddressMapper() {
     }
@@ -101,7 +105,13 @@ public final class CanonicalAddressMapper {
         addIfNotBlank(lines, fieldValue(dpa, BUILDING_NAME));
         addIfNotBlank(lines, joinNonBlank(fieldValue(dpa, BUILDING_NUMBER), fieldValue(dpa, THOROUGHFARE_NAME)));
         addIfNotBlank(lines, fieldValue(dpa, DEPENDENT_LOCALITY));
+        addIfNotBlank(lines, poBoxLine(dpa));
         return lines;
+    }
+
+    private static String poBoxLine(final Map<String, Object> dpa) {
+        final String poBoxNumber = fieldValue(dpa, PO_BOX_NUMBER);
+        return poBoxNumber == null ? null : PO_BOX_PREFIX + poBoxNumber;
     }
 
     private static void addIfNotBlank(final List<String> lines, final String value) {
