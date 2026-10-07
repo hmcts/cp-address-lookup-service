@@ -1,0 +1,6 @@
+// SB-07: resources-only module - the stub-profile WireMock fixture corpus (one folder per
+// environment: ste/dev/nft). No source code, no dependencies; consumed by the main module as a
+// project dependency so its resources land on the classpath.
+plugins {
+    id 'java-library'
+}

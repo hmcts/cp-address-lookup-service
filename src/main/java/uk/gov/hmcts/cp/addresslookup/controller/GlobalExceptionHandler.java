@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -93,6 +94,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .contentType(responseMediaType(request))
                 .body(errorBody(String.valueOf(HttpStatus.BAD_REQUEST.value()), details));
+    }
+
+    // Thrown by Spring's handler mapping itself (before any controller method is invoked) when the
+    // caller's Accept header doesn't match any media type this path can produce - e.g. calling
+    // GET /addresses (produces addresses+json) with Accept: addresses-postcode+json. Without this,
+    // it falls through to the generic catch-all below and is misreported as a 500. The response is
+    // always plain JSON, never a vendor type, since the very problem is that no vendor type the
+    // caller asked for was acceptable here.
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public ResponseEntity<ErrorResponse> onNotAcceptable(final HttpMediaTypeNotAcceptableException ex) {
+        log.warn("No acceptable media type for request: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(errorBody(String.valueOf(HttpStatus.NOT_ACCEPTABLE.value()),
+                        "None of the media types produced by this operation match the Accept header"));
     }
 
     @ExceptionHandler(Exception.class)

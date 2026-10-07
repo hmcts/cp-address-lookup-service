@@ -1,0 +1,13 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/search/places/v1/postcode",
+    "queryParameters": {
+      "postcode": { "equalTo": "SW1A 4AA" }
+    }
+  },
+  "response": {
+    "status": 500,
+    "body": "boom"
+  }
+}

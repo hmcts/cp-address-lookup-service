@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/search/places/v1/find",
+    "queryParameters": {
+      "query": { "equalTo": "server error street" },
+      "maxresults": { "absent": true }
+    }
+  },
+  "response": {
+    "status": 500,
+    "body": "boom"
+  }
+}

@@ -1,0 +1,2 @@
+rootProject.name = 'cp-address-lookup-service'
+include 'stub-fixtures'
