@@ -14,9 +14,11 @@ import uk.gov.hmcts.cp.openapi.model.al.DegradedReason;
  * Maps a raw OS Places DPA record to the canonical CP {@link AddressCandidate} contract
  * (line1-5, postcode, uprn). Pure function - no Spring context needed to test it.
  *
- * <p>line4 and line5 are fixed, dedicated fields - always {@code POST_TOWN} and
- * {@code LOCAL_CUSTODIAN_CODE_DESCRIPTION} respectively when OS Places supplies them, never part
- * of the dynamic packing below. Only line1-3 are built dynamically from whichever of
+ * <p>line4 is a fixed, dedicated field - always {@code POST_TOWN} when OS Places supplies it,
+ * never part of the dynamic packing below. line5 is never populated: OS Places'
+ * {@code LOCAL_CUSTODIAN_CODE_DESCRIPTION} is the nearest available field but does not represent
+ * an exact county, so it is deliberately not mapped to line5 (County) to avoid misrepresenting it.
+ * Only line1-3 are built dynamically from whichever of
  * organisation/sub-building/building/number+street/dependent-locality are non-blank, in that
  * order - e.g. for "10 Downing Street" (BUILDING_NUMBER="10", THOROUGHFARE_NAME="Downing Street")
  * this yields a single line1="10 Downing Street" (building number and street combine onto one
@@ -41,7 +43,6 @@ public final class CanonicalAddressMapper {
     private static final int LINE2_INDEX = 1;
     private static final int LINE3_INDEX = 2;
     private static final String POST_TOWN = "POST_TOWN";
-    private static final String LOCAL_CUSTODIAN_CODE_DESCRIPTION = "LOCAL_CUSTODIAN_CODE_DESCRIPTION";
     private static final String MATCH = "MATCH";
     private static final String ORGANISATION_NAME = "ORGANISATION_NAME";
     private static final String SUB_BUILDING_NAME = "SUB_BUILDING_NAME";
@@ -91,10 +92,7 @@ public final class CanonicalAddressMapper {
         if (postTown != null) {
             candidate.line4(postTown);
         }
-        final String localCustodianCodeDescription = fieldValue(dpa, LOCAL_CUSTODIAN_CODE_DESCRIPTION);
-        if (localCustodianCodeDescription != null) {
-            candidate.line5(localCustodianCodeDescription);
-        }
+        // line5 (County) is deliberately never set - see class Javadoc.
 
         // The generated model's dpa field defaults to an empty (not null) HashMap, which would
         // otherwise serialize as "dpa":{} even when include=dpa wasn't requested; set it
