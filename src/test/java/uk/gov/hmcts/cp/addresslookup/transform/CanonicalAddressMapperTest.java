@@ -101,7 +101,8 @@ class CanonicalAddressMapperTest {
     void uses_organisation_name_as_line1_for_a_named_premise_with_no_street_fields() {
         // Real OS Places record for Buckingham Palace: no BUILDING_NUMBER/NAME or
         // THOROUGHFARE_NAME at all, only ORGANISATION_NAME, POST_TOWN and
-        // LOCAL_CUSTODIAN_CODE_DESCRIPTION.
+        // LOCAL_CUSTODIAN_CODE_DESCRIPTION. The latter is present here but must not surface as
+        // line5 (County) - it doesn't represent an exact county.
         final Map<String, Object> dpa = new HashMap<>();
         dpa.put("UPRN", "10033544614");
         dpa.put("ORGANISATION_NAME", "BUCKINGHAM PALACE");
@@ -115,7 +116,7 @@ class CanonicalAddressMapperTest {
         assertThat(candidate.getLine2()).isNull();
         assertThat(candidate.getLine3()).isNull();
         assertThat(candidate.getLine4()).isEqualTo("LONDON");
-        assertThat(candidate.getLine5()).isEqualTo("CITY OF WESTMINSTER");
+        assertThat(candidate.getLine5()).isNull();
     }
 
     @Test
@@ -135,7 +136,7 @@ class CanonicalAddressMapperTest {
     }
 
     @Test
-    void line4_and_line5_are_absent_when_post_town_and_local_custodian_code_description_are_absent() {
+    void line4_is_absent_when_post_town_is_absent() {
         final Map<String, Object> dpa = new HashMap<>();
         dpa.put("UPRN", "10033544886");
         dpa.put("BUILDING_NUMBER", "10");
@@ -149,19 +150,33 @@ class CanonicalAddressMapperTest {
     }
 
     @Test
-    void line4_and_line5_are_not_truncated() {
+    void line4_is_not_truncated() {
         final Map<String, Object> dpa = new HashMap<>();
         dpa.put("UPRN", "10033544886");
         dpa.put("BUILDING_NUMBER", "10");
         dpa.put("THOROUGHFARE_NAME", "Downing Street");
         dpa.put("POST_TOWN", "A Very Long Post Town Name That Exceeds Thirty Five Characters");
-        dpa.put("LOCAL_CUSTODIAN_CODE_DESCRIPTION", "A Very Long Custodian Description That Exceeds Thirty Five Characters");
         dpa.put("POSTCODE", "SW1A 1AA");
 
         final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
 
         assertThat(candidate.getLine4()).isEqualTo("A Very Long Post Town Name That Exceeds Thirty Five Characters");
-        assertThat(candidate.getLine5()).isEqualTo("A Very Long Custodian Description That Exceeds Thirty Five Characters");
+    }
+
+    @Test
+    void never_maps_local_custodian_code_description_to_line5() {
+        // Business decision: LOCAL_CUSTODIAN_CODE_DESCRIPTION does not represent an exact county,
+        // so it must never be sent as line5 (County), regardless of how long or well-formed it is.
+        final Map<String, Object> dpa = new HashMap<>();
+        dpa.put("UPRN", "10033544886");
+        dpa.put("BUILDING_NUMBER", "10");
+        dpa.put("THOROUGHFARE_NAME", "Downing Street");
+        dpa.put("LOCAL_CUSTODIAN_CODE_DESCRIPTION", "CITY OF WESTMINSTER");
+        dpa.put("POSTCODE", "SW1A 1AA");
+
+        final AddressCandidate candidate = CanonicalAddressMapper.toCandidate(dpa, false);
+
+        assertThat(candidate.getLine5()).isNull();
     }
 
     @Test
