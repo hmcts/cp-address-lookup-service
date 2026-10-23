@@ -111,6 +111,72 @@ class AddressSearchServiceImplTest {
     }
 
     @Test
+    void collapses_welsh_and_english_language_variants_of_the_same_property_preferring_english() {
+        // Real OS Places behaviour: Welsh properties (COUNTRY_CODE "W") come back as one DPA
+        // record per LANGUAGE (CY/EN) for the same UPRN, otherwise identical - a plain duplicate
+        // to the caller unless collapsed. Welsh-first order, matching what OS Places actually sent.
+        final Map<String, Object> welsh = new HashMap<>();
+        welsh.put("UPRN", "200004305417");
+        welsh.put("BUILDING_NUMBER", "6");
+        welsh.put("THOROUGHFARE_NAME", "LONDON ROAD");
+        welsh.put("POSTCODE", "LL21 0DR");
+        welsh.put("LANGUAGE", "CY");
+        final Map<String, Object> english = new HashMap<>();
+        english.put("UPRN", "200004305417");
+        english.put("BUILDING_NUMBER", "6");
+        english.put("THOROUGHFARE_NAME", "LONDON ROAD");
+        english.put("POSTCODE", "LL21 0DR");
+        english.put("LANGUAGE", "EN");
+        when(osPlacesClient.searchByPostcode("LL21 0DR")).thenReturn(List.of(welsh, english));
+
+        final AddressSearchResponse response = service.searchByPostcode("LL21 0DR", true);
+
+        assertThat(response.getResults()).hasSize(1);
+        assertThat(response.getResults().get(0).getDpa()).containsEntry("LANGUAGE", "EN");
+    }
+
+    @Test
+    void prefers_english_regardless_of_which_language_variant_comes_first() {
+        final Map<String, Object> english = new HashMap<>();
+        english.put("UPRN", "200004305417");
+        english.put("BUILDING_NUMBER", "6");
+        english.put("THOROUGHFARE_NAME", "LONDON ROAD");
+        english.put("POSTCODE", "LL21 0DR");
+        english.put("LANGUAGE", "EN");
+        final Map<String, Object> welsh = new HashMap<>();
+        welsh.put("UPRN", "200004305417");
+        welsh.put("BUILDING_NUMBER", "6");
+        welsh.put("THOROUGHFARE_NAME", "LONDON ROAD");
+        welsh.put("POSTCODE", "LL21 0DR");
+        welsh.put("LANGUAGE", "CY");
+        when(osPlacesClient.searchByPostcode("LL21 0DR")).thenReturn(List.of(english, welsh));
+
+        final AddressSearchResponse response = service.searchByPostcode("LL21 0DR", true);
+
+        assertThat(response.getResults()).hasSize(1);
+        assertThat(response.getResults().get(0).getDpa()).containsEntry("LANGUAGE", "EN");
+    }
+
+    @Test
+    void does_not_collapse_distinct_properties_with_different_uprns() {
+        final Map<String, Object> first = new HashMap<>();
+        first.put("UPRN", "10033544886");
+        first.put("BUILDING_NUMBER", "10");
+        first.put("THOROUGHFARE_NAME", "Downing Street");
+        first.put("POSTCODE", "SW1A 1AA");
+        final Map<String, Object> second = new HashMap<>();
+        second.put("UPRN", "10033544887");
+        second.put("BUILDING_NUMBER", "11");
+        second.put("THOROUGHFARE_NAME", "Downing Street");
+        second.put("POSTCODE", "SW1A 1AA");
+        when(osPlacesClient.searchByPostcode("SW1A 1AA")).thenReturn(List.of(first, second));
+
+        final AddressSearchResponse response = service.searchByPostcode("SW1A 1AA", false);
+
+        assertThat(response.getResults()).hasSize(2);
+    }
+
+    @Test
     void trims_the_postcode_before_calling_the_client() {
         when(osPlacesClient.searchByPostcode(eq("SW1A 1AA"))).thenReturn(List.of());
 

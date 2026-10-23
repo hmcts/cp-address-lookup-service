@@ -1,6 +1,7 @@
 package uk.gov.hmcts.cp.addresslookup.service;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,6 +32,11 @@ import uk.gov.hmcts.cp.openapi.model.al.AddressSearchResponse;
  * results shouldn't come back empty because one of them is unusual. A batch where every record
  * turns out unmappable still just yields an empty, non-degraded result list, consistent with
  * "zero matches is not degraded" everywhere else in this service.
+ *
+ * <p>OS Places returns one DPA record per language variant (e.g. {@code EN}/{@code CY}) for the
+ * same physical property in Wales - same {@code UPRN}, otherwise identical - which would
+ * otherwise surface as duplicate results. These are collapsed to one record per {@code UPRN}
+ * before mapping, preferring the {@code EN} variant when both are present.
  */
 @Slf4j
 @Service
@@ -39,6 +45,9 @@ public class AddressSearchServiceImpl implements AddressSearchService {
 
     private static final int MAX_MATCH_RESULTS = 1;
     private static final String CACHE_KEYS = "uk.gov.hmcts.cp.addresslookup.config.AddressLookupCacheKeys";
+    private static final String UPRN = "UPRN";
+    private static final String LANGUAGE = "LANGUAGE";
+    private static final String PREFERRED_LANGUAGE = "EN";
 
     private final OsPlacesClient osPlacesClient;
 
@@ -60,7 +69,7 @@ public class AddressSearchServiceImpl implements AddressSearchService {
     @Cacheable(cacheNames = CacheConfig.ADDRESS_LOOKUP_CACHE, sync = true,
             key = "T(" + CACHE_KEYS + ").matchKey(#address, #minMatch)")
     public AddressSearchResponse findMatch(final String address, final BigDecimal minMatch) {
-        final List<AddressCandidate> candidates = osPlacesClient.findBestMatch(address, minMatch).stream()
+        final List<AddressCandidate> candidates = dedupeByUprn(osPlacesClient.findBestMatch(address, minMatch)).stream()
                 .map(dpa -> toCandidateSafely(dpa, false))
                 .flatMap(Optional::stream)
                 .limit(MAX_MATCH_RESULTS)
@@ -70,11 +79,32 @@ public class AddressSearchServiceImpl implements AddressSearchService {
 
     private static AddressSearchResponse toResponse(final List<Map<String, Object>> dpaRecords,
             final boolean includeDpa) {
-        final List<AddressCandidate> candidates = dpaRecords.stream()
+        final List<AddressCandidate> candidates = dedupeByUprn(dpaRecords).stream()
                 .map(dpa -> toCandidateSafely(dpa, includeDpa))
                 .flatMap(Optional::stream)
                 .toList();
         return new AddressSearchResponse(candidates);
+    }
+
+    private static List<Map<String, Object>> dedupeByUprn(final List<Map<String, Object>> dpaRecords) {
+        final Map<Object, Map<String, Object>> byUprn = new LinkedHashMap<>();
+        int noUprnCount = 0;
+        for (final Map<String, Object> dpa : dpaRecords) {
+            final Object uprn = dpa.get(UPRN);
+            final Object key;
+            if (uprn == null) {
+                key = "no-uprn-" + noUprnCount;
+                noUprnCount++;
+            } else {
+                key = uprn;
+            }
+            byUprn.merge(key, dpa, AddressSearchServiceImpl::preferredLanguageVariant);
+        }
+        return List.copyOf(byUprn.values());
+    }
+
+    private static Map<String, Object> preferredLanguageVariant(final Map<String, Object> existing, final Map<String, Object> candidate) {
+        return PREFERRED_LANGUAGE.equals(candidate.get(LANGUAGE)) ? candidate : existing;
     }
 
     private static Optional<AddressCandidate> toCandidateSafely(final Map<String, Object> dpa, final boolean includeDpa) {
