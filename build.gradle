@@ -100,13 +100,18 @@ dependencies {
   compileOnly 'io.swagger.core.v3:swagger-annotations:2.2.55'
   testCompileOnly 'io.swagger.core.v3:swagger-annotations:2.2.55'
 
-  // Integration tests: WireMock stands in for OS Places. The -standalone artifact shades its own
-  // Jackson/Guava, so it can't clash with the app's own Jackson (Spring Boot 4/Jackson 3) on the
-  // integrationTest classpath.
-  integrationTestImplementation 'org.wiremock:wiremock-standalone:3.13.2'
+  // WireMock stands in for OS Places. The -standalone artifact shades its own Jackson/Guava, so it
+  // can't clash with the app's own Jackson (Spring Boot 4/Jackson 3). Promoted from
+  // integrationTestImplementation to a real (profile-gated) runtime dependency for SB-07's `stub`
+  // profile (StubOsPlacesConfig) - also visible on the integrationTest classpath, since
+  // integrationTestImplementation already extends testImplementation which extends implementation.
+  implementation 'org.wiremock:wiremock-standalone:3.13.2'
   // Real HTTP round-trip against a randomly-bound embedded server, rather than MockMvc's
   // in-process dispatch simulation - TestRestTemplate moved to this module in Spring Boot 4.
   integrationTestImplementation 'org.springframework.boot:spring-boot-resttestclient'
+
+  // SB-07: stub-profile WireMock fixture corpus (one folder per environment: ste/dev/nft).
+  implementation project(':stub-fixtures')
 
   // SB-05: in-process response cache - Spring's caching abstraction (@Cacheable) backed by
   // Caffeine. No explicit versions - both managed by the Spring Boot BOM.
