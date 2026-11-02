@@ -97,8 +97,8 @@ dependencies {
   apiSpec 'uk.gov.hmcts.cp:api-cp-crime-address-lookup:0.0.4'
   // swagger-annotations is compileOnly in the contract jar (not published transitively), but its
   // generated interfaces reference these annotation classes - needed here to compile against them.
-  compileOnly 'io.swagger.core.v3:swagger-annotations:2.2.55'
-  testCompileOnly 'io.swagger.core.v3:swagger-annotations:2.2.55'
+  compileOnly 'io.swagger.core.v3:swagger-annotations:3.0.0'
+  testCompileOnly 'io.swagger.core.v3:swagger-annotations:3.0.0'
 
   // Integration tests: WireMock stands in for OS Places. The -standalone artifact shades its own
   // Jackson/Guava, so it can't clash with the app's own Jackson (Spring Boot 4/Jackson 3) on the
