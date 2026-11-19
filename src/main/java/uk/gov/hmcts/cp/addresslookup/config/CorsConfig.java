@@ -25,8 +25,6 @@ public class CorsConfig implements WebMvcConfigurer {
                 // anything (an unmapped method still 404/405s).
                 .allowedMethods(HttpMethod.GET.name())
                 .allowedHeaders("*")
-                .exposedHeaders("Location", "X-Total-Count")
-                .allowCredentials(true)
                 .maxAge(DEFAULT_MAX_AGE_SECONDS);
     }
 }
